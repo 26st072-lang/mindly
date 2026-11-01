@@ -48,13 +48,6 @@ export function identifier(value) {
   if (typeof value !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value)) throw new ApiError(400, 'INVALID_ID', '요청을 다시 시도해주세요.');
   return value;
 }
-export function localFeedback(content) {
-  const normalized = content.normalize('NFKC').toLowerCase().replace(/[\s\p{P}\p{S}]/gu, '');
-  if (/(시[발빨]|씨[발빨]|ㅅㅂ|ㅆㅂ|병신|ㅂㅅ|개새끼|미친놈|미친년|죽어버려|닥쳐|좆|존나|fuck|bitch|멍청한새끼|지랄)/iu.test(normalized)) {
-    return { allowed: false, reason: '상대에게 상처를 줄 수 있는 비속어가 포함되어 있어요.', suggestion: '그 의견에는 동의하기 어려워요. 제가 그렇게 생각하는 이유는 … 입니다.', flags: ['비속어'] };
-  }
-  return null;
-}
 export async function anonymousAlias(userId, debateId, secret) {
   if (!secret || secret.length < 24) throw new ApiError(503, 'SETUP_REQUIRED', '토론 서버 설정을 마무리하고 있어요. 잠시 후 다시 이용해주세요.');
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);

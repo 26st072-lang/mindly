@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {generateKeyPair,exportJWK,createLocalJWKSet,SignJWT} from 'jose';
 import {verifyFirebaseUser,anonymousAlias} from '../src/security.js';
-import {callAI} from '../src/ai.js';
+import {callAI,moderate} from '../src/ai.js';
 import {sampleAnalysis} from './helpers.mjs';
 test('Firebase verification checks signature, project, expiry and rejects anonymous auth',async()=>{
   const {privateKey,publicKey}=await generateKeyPair('RS256'),jwk=await exportJWK(publicKey);jwk.kid='test-key';
@@ -38,4 +38,9 @@ test('malformed AI decisions and quota errors never become allowed content',asyn
   const env={GEMINI_API_KEY:'test',GEMINI_MODEL:'gemini-2.5-flash-lite'};
   await assert.rejects(()=>callAI(env,'free','moderate',{content:'안녕하세요'},async()=>Response.json({candidates:[{content:{parts:[{text:'{"allowed":"true"}'}]}}]})),error=>error.status===503);
   await assert.rejects(()=>callAI(env,'free','moderate',{content:'안녕하세요'},async()=>new Response('',{status:429})),error=>error.status===429);
+});
+test('legitimate Korean words are reviewed in context instead of blocked by matching part of a word',async()=>{
+  let reviewed='';
+  await moderate({},'free','도시 발전과 이번 논쟁의 시발점을 함께 살펴보면 좋겠어요.','토론',async(_env,_mode,_task,input)=>{reviewed=input.content;return {allowed:true,reason:'',suggestion:'',flags:[]};});
+  assert.ok(reviewed.includes('시발점'));
 });

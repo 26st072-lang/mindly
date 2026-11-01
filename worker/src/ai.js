@@ -1,4 +1,4 @@
-import { ApiError, localFeedback } from './security.js';
+import { ApiError } from './security.js';
 
 export const analysisSchema = {
   type: 'object', additionalProperties: false,
@@ -63,6 +63,6 @@ export async function callAI(env, mode, task, input, fetcher = fetch) {
   }
 }
 export async function moderate(env, mode, content, context, caller = callAI) {
-  const feedback = localFeedback(content) || await caller(env, mode, 'moderate', { content, context });
+  const feedback = await caller(env, mode, 'moderate', { content, context });
   if (!feedback.allowed) throw new ApiError(422, 'REVISE', '표현을 다듬어주세요.', { feedback });
 }
