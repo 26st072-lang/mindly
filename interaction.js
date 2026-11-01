@@ -75,6 +75,7 @@ function busyMessage(){
     if(action==='login')return '로그인하고 있어요';
     if(action==='signup')return '계정을 만들고 있어요';
     if(action==='debate-analysis')return '사진을 읽고 토론 초안을 만들고 있어요';
+    if(action==='ai-check')return 'AI 제공자의 실제 연결을 확인하고 있어요';
     if(action==='debate-opinion'||action==='debate-post')return '표현을 확인하고 게시하고 있어요';
     if(action==='logout')return '로그아웃하고 있어요';
     if(action.startsWith('delete-'))return '삭제하고 있어요';

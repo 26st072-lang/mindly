@@ -2,15 +2,17 @@ import {test,expect} from '@playwright/test';
 import {mockApp} from './fixture.mjs';
 const id='aaaabbbb-1111-4111-8111-111111111111',analysisId='aaaabbbb-2222-4222-8222-222222222222';
 const debate={id,title:'학교에서 휴대전화를 자유롭게 사용해도 될까요?',summary:'자율적으로 사용할 권리가 중요하다는 의견과 수업 집중을 위해 제한해야 한다는 의견이 있어요.',issues:['수업 중 집중과 자율성을 어떻게 조화시킬까요?','긴급한 연락을 위한 사용은 어떻게 정할까요?'],agreeLabel:'자율적으로 사용해도 돼요',disagreeLabel:'수업 중에는 제한해야 해요',createdAt:Date.now(),heartCount:2,commentCount:0,agreeCount:0,disagreeCount:0,hearted:false,myStance:null,isMine:false};
-async function setup(page,{reject=false,fail=false}={}){
+async function setup(page,{reject=false,fail=false,restricted=false}={}){
   await mockApp(page,{user:true});
   await page.route('**/site-config.js',route=>route.fulfill({body:"window.MINDLY_CONFIG={workerUrl:'https://worker.test'};",contentType:'text/javascript'}));
   const calls=[],opinions=[];let current={...debate};
   await page.route('https://worker.test/**',async route=>{
     const request=route.request(),url=new URL(request.url()),body=request.postDataJSON();calls.push({path:url.pathname,method:request.method(),body});
     const send=(json,status=200)=>route.fulfill({json,status,headers:{'Access-Control-Allow-Origin':'*'}});
-    if(url.pathname==='/v1/config')return send({mode:'free',provider:'Gemini',model:'gemini-2.5-flash-lite',ready:true});
-    if(url.pathname==='/v1/admin/settings')return send({mode:'free',available:{free:true,paid:true},models:{free:'gemini-2.5-flash-lite',paid:'openai/gpt-6-luna'}});
+    if(url.pathname==='/v1/config')return send({mode:'free',provider:'Gemini',model:'gemini-3.5-flash-lite',ready:true});
+    if(url.pathname==='/v1/admin/settings')return send({mode:'free',available:{free:true,paid:true},models:{free:'gemini-3.5-flash-lite',paid:'openai/gpt-6-luna'}});
+    if(url.pathname==='/v1/admin/check-ai')return restricted?send({code:'GEMINI_FREE_TIER_UNAVAILABLE',message:'Google이 이 프로젝트의 무료 Gemini API 사용을 허용하지 않고 있어요.'},403):send({ok:true,provider:'Gemini',model:'gemini-3.5-flash-lite'});
+    if(url.pathname==='/v1/analyze'&&restricted)return send({code:'GEMINI_FREE_TIER_UNAVAILABLE',message:'Google이 이 프로젝트의 무료 Gemini API 사용을 허용하지 않고 있어요.'},403);
     if(url.pathname==='/v1/analyze')return send({analysisId,readable:true,ocrText:'개인정보를 가린 댓글 내용입니다.',...debate});
     if(url.pathname==='/v1/me')return send({items:[],hasMore:false});
     if(url.pathname==='/v1/debates'&&request.method()==='POST'){current={...current,...body,isMine:true};return send({debate:current},201);}
@@ -68,4 +70,18 @@ test('new debate, archive and music controls fit small screens and dark mode',as
   const results=await page.evaluate(()=>axe.run(document.querySelector('#root'),{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}}));expect(results.violations.filter(item=>['serious','critical'].includes(item.impact))).toEqual([]);
   await page.locator('.music-info summary').click();await expect(page.locator('.music-popover')).toContainText('마인들리의 작은 쉼표');await page.getByRole('slider',{name:'배경음악 음량'}).evaluate(input=>{input.value='80';input.dispatchEvent(new Event('input',{bubbles:true}));});expect(await page.evaluate(()=>musicState.volume)).toBe(80);
   await page.screenshot({path:'.qa/debate-desktop.png',fullPage:true});
+});
+test('admin inference check distinguishes a configured key from a restricted Gemini project',async({page})=>{
+  const state=await setup(page,{restricted:true});
+  await page.evaluate(()=>{session.isAdmin=true;goto('adminPanel');});
+  await page.getByRole('button',{name:'AI 실제 연결 확인'}).click();
+  await expect(page.locator('.ai-connection-check')).toContainText('무료 Gemini API 사용을 허용하지 않고');
+  expect(state.calls.filter(call=>call.path==='/v1/admin/check-ai')).toHaveLength(1);
+});
+test('a photo provider restriction preserves attachments and input for a retry after access is fixed',async({page})=>{
+  await setup(page,{restricted:true});await page.evaluate(()=>startDebateWriting());
+  await page.locator('#debate-images').setInputFiles('assets/mascot.png');await expect(page.locator('.image-previews img')).toBeVisible();
+  await page.locator('#debate-consent').check();await page.getByRole('button',{name:'사진 읽고 토론 초안 만들기'}).click();
+  await expect(page.getByRole('alert')).toContainText('무료 Gemini API 사용을 허용하지 않고');
+  await expect(page.locator('.image-previews img')).toBeVisible();await expect(page.locator('#debate-consent')).toBeChecked();
 });

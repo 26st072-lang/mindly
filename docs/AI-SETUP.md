@@ -15,7 +15,7 @@
 3. 무료로 사용할 때는 **결제를 연결하지 않은 프로젝트**에서 키를 만듭니다. Gemini의 무료·유료 구분은 Google 프로젝트의 결제 상태와 사용 한도에 따라 결정됩니다. 사이트의 ‘무료’ 버튼이 Google 계정의 결제 상태를 변경하지는 않습니다.
 4. 생성한 키를 복사하고 다음 단계의 Cloudflare 비밀값 입력란에만 붙여넣습니다. 채팅, GitHub, `index.html`, `site-config.js`에 붙이지 않습니다.
 
-기본 무료 경로는 `gemini-2.5-flash-lite`입니다. 사진을 직접 읽으면서 OCR와 토론 요약을 함께 수행합니다. 별도 OCR 유료 서비스는 사용하지 않습니다. 무료 API는 사용량 제한이 있고, 입력 내용이 서비스 개선에 사용될 수 있습니다. 댓글 사진의 이름·닉네임·얼굴·아이디를 먼저 가려야 합니다. [Gemini 요금·데이터 사용 안내](https://ai.google.dev/gemini-api/docs/pricing)
+기본 무료 경로는 `gemini-3.5-flash-lite`입니다. 사진을 직접 읽으면서 OCR와 토론 요약을 함께 수행합니다. 별도 OCR 유료 서비스는 사용하지 않습니다. 무료 API는 사용량 제한이 있고, 입력 내용이 서비스 개선에 사용될 수 있습니다. 댓글 사진의 이름·닉네임·얼굴·아이디를 먼저 가려야 합니다. [Gemini 요금·데이터 사용 안내](https://ai.google.dev/gemini-api/docs/pricing)
 
 ## 3. OpenRouter 키 만들기
 
@@ -77,10 +77,18 @@ UID는 사용자 식별자입니다. 비밀번호나 API 키가 아닙니다. �
 
 API 키를 등록하기 전에는 실제 AI 분석이 동작하지 않습니다. AI가 실패하거나 한도에 도달하면 게시를 중단하고 입력을 보존합니다. 화면에서 분석 성공을 흉내 내거나 검사를 생략해 게시하지 않습니다.
 
+관리자 화면의 **AI 실제 연결 확인**은 키의 존재 여부만 보는 대신 선택한 제공자에 실제 검사 요청 1회를 보냅니다. 키가 등록되어 있어도 프로젝트 권한이나 무료 이용 자격 문제로 실패할 수 있습니다.
+
+### Google이 무료 API 사용을 거절할 때
+
+`GEMINI_FREE_TIER_UNAVAILABLE` 또는 `403 PERMISSION_DENIED`가 나오면 Google AI Studio의 **Projects**에서 해당 키가 연결된 프로젝트의 **Billing tier / Status**를 확인합니다. `Free tier unavailable`, `Restricted`, `Unavailable`이면 이 프로젝트의 무료 API 사용이 제한된 상태입니다. 같은 프로젝트에서 키만 재발급해도 해결되지 않습니다. 무료 사용을 유지하려면 무료 등급을 사용할 수 있는 프로젝트의 키가 필요합니다. 앱에서는 이 제한을 해제하거나 유료로 자동 전환하지 않습니다. [Google 공식 문제 해결 안내](https://ai.google.dev/gemini-api/docs/troubleshooting#project-restricted-or-unavailable)
+
+기존 `gemini-2.5-flash-lite`는 신규 사용자에게 제공되지 않는다는 응답이 확인되어 기본 모델을 `gemini-3.5-flash-lite`로 변경했습니다. 모델의 무료 제공 여부와 프로젝트의 실제 무료 이용 자격은 별도로 확인해야 합니다.
+
 ## 7. 비용과 데이터
 
 - Cloudflare Workers와 D1은 무료 플랜으로 구성합니다. 무료 제공량을 초과하면 서비스 이용이 제한될 수 있습니다. [Workers 제한](https://developers.cloudflare.com/workers/platform/limits/), [D1 요금](https://developers.cloudflare.com/d1/platform/pricing/)
-- 기본 서버 제한은 한 사용자당 하루 사진 분석 5회, 글·의견 검사 40회이며, 전체 AI 경로별 하루 200회입니다. 제공자의 실제 한도는 이보다 적을 수 있습니다. `AI_DAILY_LIMIT`으로 전체 한도를 조정할 수 있습니다.
+- 기본 서버 제한은 한 사용자당 하루 사진 분석 성공 5회, 글·의견 검사 40회이며, 전체 AI 경로별 하루 호출 시도 200회입니다. 한국시간 오전 9시에 초기화합니다. 제공자·네트워크·응답 처리 오류는 사용자 한도에 복구하며, 완료된 표현 수정 판정은 검사 횟수로 계산합니다. 전체 호출 시도 제한은 비용과 과도한 재시도를 막기 위해 유지합니다. 제공자의 실제 한도는 이보다 적을 수 있습니다. `AI_DAILY_LIMIT`으로 전체 한도를 조정할 수 있습니다.
 - 원본 사진과 OCR 원문은 D1에 저장하지 않습니다. 사진은 선택된 AI 제공자에게 전송됩니다. 게시물에는 사용자가 확인한 요약·쟁점·입장만 저장합니다.
 - 익명은 다른 이용자에게 계정 정보를 보여주지 않는다는 의미입니다. 서버는 한 사람 한 표와 개인 보관함을 위해 Firebase UID를 내부적으로 저장합니다.
 - 브라우저에 있는 Firebase 웹 설정의 `apiKey`는 앱 식별에 사용하는 공개 웹 설정입니다. Gemini·OpenRouter 비밀 API 키와 용도가 다릅니다. Firebase 데이터 접근 권한은 Firebase 보안 규칙에서 관리합니다. [Firebase API 키 안내](https://firebase.google.com/docs/projects/api-keys)

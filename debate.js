@@ -1,5 +1,5 @@
 /* The browser calls our Worker. Provider keys never enter this file or storage. */
-const debateState={config:null,configLoading:false,configError:'',list:[],listLoaded:false,listLoading:false,listError:'',hasMore:false,loadedAt:0,details:new Map(),archives:{},admin:null,adminLoading:false,adminError:'',feedback:null,error:'',images:[],imageLoading:false,consent:false,analysis:null,draft:null,opinionDrafts:{},epoch:0,controllers:new Set()};
+const debateState={config:null,configLoading:false,configError:'',list:[],listLoaded:false,listLoading:false,listError:'',hasMore:false,loadedAt:0,details:new Map(),archives:{},admin:null,adminLoading:false,adminError:'',adminCheck:null,feedback:null,error:'',images:[],imageLoading:false,consent:false,analysis:null,draft:null,opinionDrafts:{},epoch:0,controllers:new Set()};
 Object.assign(ui,{archiveGroup:'concern',currentDebateId:null});
 function workerEndpoint(){return String(window.MINDLY_CONFIG?.workerUrl||'').replace(/\/+$/,'');}
 function communityRouteTitle(){return ui.route==='main'?(ui.mainTab==='home'?'마인들리 홈':'마음 라운지'):ui.route.startsWith('debate')?'익명 토론 게시판':ui.route==='archive'?'나의 보관함':'나의 마인들리';}
@@ -213,9 +213,22 @@ async function loadAIAdmin(){
 }
 function renderAIAdminPanel(){
   const info=debateState.admin;
-  return `<section class="admin-section ai-settings"><h3>토론 AI · 무료 / 유료 선택</h3><p class="field-help">현재 선택은 모든 사진 분석과 의견 검사에 적용돼요. 무료 한도가 끝나도 유료로 자동 전환하지 않아요.</p>${!workerEndpoint()?debateMessage('Worker 배포와 연결을 먼저 완료해주세요.'):debateState.adminError?`<p class="form-error" role="alert">${escapeHtml(debateState.adminError)}</p>`:!info?'<p class="loading-copy"><span class="spinner"></span>설정을 확인하고 있어요.</p>':`<p>현재: <strong>${info.mode==='free'?'무료 · Gemini':'유료 · OpenRouter'}</strong></p><div class="ai-mode-options">${[['free','무료 · Gemini'],['paid','유료 · GPT Luna']].map(([mode,label])=>`<button class="btn-ghost ${info.mode===mode?'selected':''}" data-action="ai-settings" aria-pressed="${info.mode===mode}" onclick="saveAIMode('${mode}')" ${!info.available[mode]?'disabled':''}>${label}<small>${escapeHtml(info.models[mode])}${!info.available[mode]?' · 키 등록 필요':''}</small></button>`).join('')}</div><p class="field-help">유료 모드는 OpenRouter 사용량만큼 비용이 발생해요. 제공자 계정에서 사용 한도를 설정해주세요. API 키는 Cloudflare의 비밀값에만 등록하며 여기에 표시하지 않아요.</p>`}<button class="text-link" onclick="loadAIAdmin()">설정 다시 확인</button></section>`;
+  return `<section class="admin-section ai-settings"><h3>토론 AI · 무료 / 유료 선택</h3><p class="field-help">현재 선택은 모든 사진 분석과 의견 검사에 적용돼요. 무료 한도가 끝나도 유료로 자동 전환하지 않아요.</p>${!workerEndpoint()?debateMessage('Worker 배포와 연결을 먼저 완료해주세요.'):debateState.adminError?`<p class="form-error" role="alert">${escapeHtml(debateState.adminError)}</p>`:!info?'<p class="loading-copy"><span class="spinner"></span>설정을 확인하고 있어요.</p>':`<p>현재: <strong>${info.mode==='free'?'무료 · Gemini':'유료 · OpenRouter'}</strong></p><div class="ai-mode-options">${[['free','무료 · Gemini'],['paid','유료 · GPT Luna']].map(([mode,label])=>`<button class="btn-ghost ${info.mode===mode?'selected':''}" data-key="ai-mode-${mode}" data-action="ai-settings" aria-pressed="${info.mode===mode}" onclick="saveAIMode('${mode}')" ${!info.available[mode]?'disabled':''}>${label}<small>${escapeHtml(info.models[mode])}${!info.available[mode]?' · 키 등록 필요':''}</small></button>`).join('')}</div><p class="field-help">유료 모드는 OpenRouter 사용량만큼 비용이 발생해요. 제공자 계정에서 사용 한도를 설정해주세요. API 키는 Cloudflare의 비밀값에만 등록하며 여기에 표시하지 않아요.</p>`}<button data-key="ai-admin-refresh" class="text-link" onclick="loadAIAdmin()">설정 다시 확인</button>${renderAIConnectionCheck()}</section>`;
 }
-async function saveAIMode(mode){if(mode==='paid'&&!confirm('OpenRouter의 유료 GPT Luna로 전환할까요? API 사용량에 따라 비용이 발생합니다.'))return;return debateAction('ai-settings',async epoch=>{const result=await debateRequest('/v1/admin/settings',{method:'PATCH',body:{mode}});if(epoch!==debateState.epoch)return;debateState.config=result;debateState.admin={...debateState.admin,...result};toast('AI 모드를 변경했어요.');});}
+async function saveAIMode(mode){if(mode==='paid'&&!confirm('OpenRouter의 유료 GPT Luna로 전환할까요? API 사용량에 따라 비용이 발생합니다.'))return;return debateAction('ai-settings',async epoch=>{const result=await debateRequest('/v1/admin/settings',{method:'PATCH',body:{mode}});if(epoch!==debateState.epoch)return;debateState.config=result;debateState.adminCheck=null;debateState.admin={...debateState.admin,...result};toast('AI 모드를 변경했어요.');});}
+function renderAIConnectionCheck(){
+  if(!workerEndpoint()||!debateState.admin)return '';
+  const result=debateState.adminCheck;
+  return `<div class="ai-connection-check" data-key="ai-connection-check"><p class="field-help">키 등록 여부와 실제 AI 응답은 달라요. 연결 확인은 현재 선택한 AI에 짧은 검사 요청 1회를 보내요.</p><button id="ai-check-button" class="btn-ghost" data-action="ai-check" onclick="checkAIConnection()">AI 실제 연결 확인</button>${result?`<p class="${result.ok?'field-help':'form-error'}" role="status">${escapeHtml(result.message)}</p>`:''}</div>`;
+}
+async function checkAIConnection(){
+  if(!session.isAdmin)return;
+  const epoch=debateState.epoch;debateState.adminCheck=null;
+  return runAction('ai-check',async()=>{
+    try{const result=await debateRequest('/v1/admin/check-ai',{method:'POST',body:{}});if(epoch===debateState.epoch)debateState.adminCheck={ok:true,message:`${result.provider}의 실제 응답을 확인했어요. (${result.model})`};}
+    catch(error){if(epoch===debateState.epoch)debateState.adminCheck={ok:false,message:error.message};}
+  });
+}
 document.addEventListener('mindly:view-rendered',()=>{
   if(!sync.authReady||!workerEndpoint())return;
   if(!debateState.config&&!debateState.configLoading&&!debateState.configError)loadDebateConfig();
@@ -226,7 +239,7 @@ document.addEventListener('mindly:view-rendered',()=>{
 });
 document.addEventListener('mindly:session-changed',()=>{
   debateState.epoch++;for(const controller of debateState.controllers)controller.abort();debateState.controllers.clear();clearDebateImages();
-  Object.assign(debateState,{configLoading:false,configError:'',list:[],listLoaded:false,listLoading:false,listError:'',details:new Map(),archives:{},admin:null,adminLoading:false,adminError:'',feedback:null,error:'',analysis:null,draft:null,consent:false,opinionDrafts:{},imageLoading:false});
+  Object.assign(debateState,{configLoading:false,configError:'',list:[],listLoaded:false,listLoading:false,listError:'',details:new Map(),archives:{},admin:null,adminLoading:false,adminError:'',adminCheck:null,feedback:null,error:'',analysis:null,draft:null,consent:false,opinionDrafts:{},imageLoading:false});
 });
 document.addEventListener('keydown',event=>{if(!debateState.feedback)return;if(event.key==='Escape'){event.preventDefault();closeDebateFeedback();}else if(event.key==='Tab'){event.preventDefault();document.getElementById('feedback-confirm')?.focus();}});
 setInterval(()=>{if(!document.hidden&&ui.route==='debateDetail'){const state=debateState.details.get(ui.currentDebateId);if(state?.loaded&&!state.loading&&Date.now()-state.updatedAt>30000)loadDebateDetail(ui.currentDebateId);}},30000);

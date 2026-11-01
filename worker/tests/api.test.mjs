@@ -75,4 +75,28 @@ test('a global AI quota stops calls rather than silently switching to a paid pro
   assert.equal((await h.request('/v1/analyze',{method:'POST',body:{images:[image],consent:true}})).status,200);
   assert.equal((await h.request('/v1/analyze',{method:'POST',user:'second',body:{images:[image],consent:true}})).status,429);
   assert.equal(h.calls.length,1);assert.equal(h.calls[0][1],'free');
+  assert.equal(h.DB.sqlite.prepare("SELECT count FROM quotas WHERE key LIKE 'day:%:image:second'").get().count,0);
+});
+test('provider failures refund a member’s allowance; five successful analyses still enforce the daily cap',async()=>{
+  let failing=true;
+  const h=harness({ai:()=>{if(failing)throw new ApiError(403,'GEMINI_FREE_TIER_UNAVAILABLE','무료 이용이 제한된 프로젝트예요.');return sampleAnalysis;}});
+  const request=()=>h.request('/v1/analyze',{method:'POST',body:{images:[image],consent:true}});
+  for(let i=0;i<6;i++)assert.equal((await request()).status,403);
+  assert.equal(h.DB.sqlite.prepare("SELECT count FROM quotas WHERE key LIKE 'day:%:image:reader'").get().count,0);
+  failing=false;
+  for(let i=0;i<5;i++)assert.equal((await request()).status,200);
+  const blocked=await request();assert.equal(blocked.status,429);assert.equal(blocked.data.code,'IMAGE_DAILY_LIMIT');assert.ok(blocked.data.retryAt);
+  assert.equal(h.DB.sqlite.prepare("SELECT count FROM quotas WHERE key LIKE 'global:%'").get().count,11);
+});
+test('an unreadable image can be corrected without consuming a successful-analysis slot',async()=>{
+  const h=harness({ai:()=>({...sampleAnalysis,readable:false})});
+  assert.equal((await h.request('/v1/analyze',{method:'POST',body:{images:[image],consent:true}})).status,422);
+  assert.equal(h.DB.sqlite.prepare("SELECT count FROM quotas WHERE key LIKE 'day:%:image:reader'").get().count,0);
+});
+test('actual provider checks are admin-only and surface restrictions despite a configured key',async()=>{
+  const h=harness({ai:()=>{throw new ApiError(403,'GEMINI_FREE_TIER_UNAVAILABLE','Google 무료 등급이 제한되어 있어요.');}});
+  assert.equal((await h.request('/v1/config')).data.ready,true);
+  assert.equal((await h.request('/v1/admin/check-ai',{method:'POST',body:{}})).status,403);assert.equal(h.calls.length,0);
+  const result=await h.request('/v1/admin/check-ai',{method:'POST',user:'admin',body:{}});assert.equal(result.status,403);assert.equal(result.data.code,'GEMINI_FREE_TIER_UNAVAILABLE');
+  assert.equal(h.DB.sqlite.prepare("SELECT count FROM quotas WHERE key LIKE 'day:%:text:admin'").get().count,0);
 });

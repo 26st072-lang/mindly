@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {generateKeyPair,exportJWK,createLocalJWKSet,SignJWT} from 'jose';
 import {verifyFirebaseUser,anonymousAlias} from '../src/security.js';
-import {callAI,moderate} from '../src/ai.js';
+import {callAI,moderate,providerInfo} from '../src/ai.js';
 import {sampleAnalysis} from './helpers.mjs';
 test('Firebase verification checks signature, project, expiry and rejects anonymous auth',async()=>{
   const {privateKey,publicKey}=await generateKeyPair('RS256'),jwk=await exportJWK(publicKey);jwk.kid='test-key';
@@ -25,17 +25,17 @@ test('anonymous aliases are stable only within one debate and never expose the U
   assert.ok(!a.includes('secret-user'));
 });
 test('Gemini and OpenRouter send keys only in upstream headers and request constrained JSON',async()=>{
-  const env={GEMINI_API_KEY:'gemini-secret',OPENROUTER_API_KEY:'router-secret',GEMINI_MODEL:'gemini-2.5-flash-lite',OPENROUTER_MODEL:'openai/gpt-6-luna'};
+  const env={GEMINI_API_KEY:'gemini-secret',OPENROUTER_API_KEY:'router-secret',GEMINI_MODEL:'gemini-3.5-flash-lite',OPENROUTER_MODEL:'openai/gpt-6-luna'};
   for(const mode of ['free','paid']){
     let captured;
     const result=await callAI(env,mode,'analyze',{images:[]},async(url,options)=>{captured={url,options,body:JSON.parse(options.body)};return Response.json(mode==='free'?{candidates:[{content:{parts:[{text:JSON.stringify(sampleAnalysis)}]}}]}:{choices:[{message:{content:JSON.stringify(sampleAnalysis)}}]});});
     assert.equal(result.title,sampleAnalysis.title);assert.ok(!captured.url.includes('secret'));assert.ok(!captured.options.body.includes('secret'));
     if(mode==='paid'){assert.equal(captured.body.model,'openai/gpt-6-luna');assert.equal(captured.body.response_format.type,'json_schema');}
-    else assert.equal(captured.options.headers['x-goog-api-key'],'gemini-secret');
+    else {assert.equal(captured.options.headers['x-goog-api-key'],'gemini-secret');assert.equal(captured.body.generationConfig.responseFormat.text.mimeType,'APPLICATION_JSON');assert.equal(captured.body.generationConfig.responseFormat.text.schema.type,'object');}
   }
 });
 test('malformed AI decisions and quota errors never become allowed content',async()=>{
-  const env={GEMINI_API_KEY:'test',GEMINI_MODEL:'gemini-2.5-flash-lite'};
+  const env={GEMINI_API_KEY:'test',GEMINI_MODEL:'gemini-3.5-flash-lite'};
   await assert.rejects(()=>callAI(env,'free','moderate',{content:'안녕하세요'},async()=>Response.json({candidates:[{content:{parts:[{text:'{"allowed":"true"}'}]}}]})),error=>error.status===503);
   await assert.rejects(()=>callAI(env,'free','moderate',{content:'안녕하세요'},async()=>new Response('',{status:429})),error=>error.status===429);
 });
@@ -43,4 +43,14 @@ test('legitimate Korean words are reviewed in context instead of blocked by matc
   let reviewed='';
   await moderate({},'free','도시 발전과 이번 논쟁의 시발점을 함께 살펴보면 좋겠어요.','토론',async(_env,_mode,_task,input)=>{reviewed=input.content;return {allowed:true,reason:'',suggestion:'',flags:[]};});
   assert.ok(reviewed.includes('시발점'));
+});
+test('provider restrictions, key problems and retired models have distinct safe errors',async()=>{
+  const env={GEMINI_API_KEY:'private-key',GEMINI_MODEL:'gemini-3.5-flash-lite'};
+  for(const [status,message,code] of [[403,'The Gemini API free tier is not available for this project.','GEMINI_FREE_TIER_UNAVAILABLE'],[404,'Model is not available for new users.','AI_MODEL_UNAVAILABLE'],[400,'API key not valid.','AI_KEY_INVALID'],[403,'This API is disabled.','AI_PERMISSION_DENIED']]){
+    await assert.rejects(()=>callAI(env,'free','moderate',{content:'안녕하세요'},async()=>Response.json({error:{message}},{status})),error=>error.code===code&&!error.message.includes('private-key'));
+  }
+});
+test('a secret accidentally placed in a model setting is never returned in metadata',()=>{
+  const info=providerInfo({OPENROUTER_MODEL:'sk-or-v1-private-model-setting',OPENROUTER_API_KEY:'test'},'paid');
+  assert.equal(info.model,'openai/gpt-6-luna');assert.ok(!JSON.stringify(info).includes('private-model-setting'));
 });

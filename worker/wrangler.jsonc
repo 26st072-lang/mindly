@@ -8,8 +8,7 @@
   "vars": {
     "FIREBASE_PROJECT_ID": "mindly1-52859",
     "ALLOWED_ORIGINS": "https://26st072-lang.github.io,http://127.0.0.1:4173,http://localhost:4173",
-    "GEMINI_MODEL": "gemini-2.5-flash-lite",
-    "OPENROUTER_MODEL": "openai/gpt-6-luna",
+    "GEMINI_MODEL": "gemini-3.5-flash-lite",
     "AI_DAILY_LIMIT": "200"
   },
   "d1_databases": [

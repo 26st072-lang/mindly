@@ -22,17 +22,32 @@ async function getDebate(env, id, user) {
   return dto(record, user);
 }
 async function modeFor(env) { return (await env.DB.prepare('SELECT mode FROM settings WHERE id=1').first())?.mode || 'free'; }
-async function consumeQuota(env, key, max, expiresAt) {
+async function consumeQuota(env, key, max, expiresAt, failure={code:'RATE_LIMIT',message:'요청이 많아요. 잠시 후 다시 시도해주세요.'}) {
   const result = await env.DB.prepare('INSERT INTO quotas(key,count,expires_at) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1 WHERE count<? RETURNING count').bind(key, expiresAt, max).first();
-  if (!result) throw new ApiError(429, 'RATE_LIMIT', '잠시 쉬었다가 다시 이용해주세요. 오늘의 이용 한도에 도달했을 수 있어요.');
+  if (!result) throw new ApiError(429, failure.code, failure.message, {retryAt:new Date(expiresAt).toISOString()});
 }
 async function reserveAI(env, user, action, mode, now) {
   const info = providerInfo(env, mode);
   if (!info.ready) throw new ApiError(503, 'AI_NOT_CONFIGURED', 'AI 연결이 아직 준비되지 않았어요. 관리자에게 문의해주세요.');
   const day = Math.floor(now / 86_400_000), expires = (day + 1) * 86_400_000;
-  await consumeQuota(env, `day:${day}:${action}:${user.uid}`, action === 'image' ? 5 : 40, expires);
+  const userKey=`day:${day}:${action}:${user.uid}`;
+  await consumeQuota(env, userKey, action === 'image' ? 5 : 40, expires,{code:action==='image'?'IMAGE_DAILY_LIMIT':'TEXT_DAILY_LIMIT',message:action==='image'?'오늘의 사진 분석 한도인 5회를 사용했어요. 한국시간 오전 9시에 다시 이용할 수 있어요.':'오늘의 글·의견 검사 한도인 40회를 사용했어요. 한국시간 오전 9시에 다시 이용할 수 있어요.'});
+  let released=false;
+  const refund=async()=>{if(released)return;await env.DB.prepare('UPDATE quotas SET count=MAX(count-1,0) WHERE key=?').bind(userKey).run();released=true;};
   const globalLimit = Math.max(1, Math.min(2000, Number(env.AI_DAILY_LIMIT) || 200));
-  await consumeQuota(env, `global:${day}:${mode}`, globalLimit, expires);
+  try{await consumeQuota(env, `global:${day}:${mode}`, globalLimit, expires,{code:'SITE_AI_DAILY_LIMIT',message:'오늘의 사이트 전체 AI 이용 한도에 도달했어요. 한국시간 오전 9시에 다시 이용할 수 있어요.'});}
+  catch(error){await refund();throw error;}
+  return refund;
+}
+async function runMeteredAI(env,user,action,mode,now,operation){
+  const refund=await reserveAI(env,user,action,mode,now);
+  try{return await operation();}
+  catch(error){
+    // A completed moderation rejection is a real review. Provider/network/JSON
+    // failures are retryable and must not exhaust a member's daily allowance.
+    if(error.code!=='REVISE')await refund();
+    throw error;
+  }
 }
 function parseImages(images) {
   if (!Array.isArray(images) || images.length < 1 || images.length > 3) throw new ApiError(400, 'INVALID_IMAGES', '댓글 사진을 1~3장 첨부해주세요.');
@@ -80,7 +95,7 @@ export function createApp({ verifyUser = verifyFirebaseUser, ai = callAI, now = 
         if (path === '/v1/config' && request.method === 'GET') return respond(providerInfo(env, mode));
         if (path === '/v1/admin/settings') {
           assertAdmin(user, env);
-          if (request.method === 'GET') return respond({ ...providerInfo(env, mode), available: { free: Boolean(env.GEMINI_API_KEY), paid: Boolean(env.OPENROUTER_API_KEY) }, models: { free: env.GEMINI_MODEL, paid: env.OPENROUTER_MODEL } });
+          if (request.method === 'GET') return respond({ ...providerInfo(env, mode), available: { free: Boolean(env.GEMINI_API_KEY), paid: Boolean(env.OPENROUTER_API_KEY) }, models: { free: providerInfo(env,'free').model, paid: providerInfo(env,'paid').model } });
           if (request.method === 'PATCH') {
             const body = await readJSON(request);
             if (!['free', 'paid'].includes(body.mode)) throw new ApiError(400, 'INVALID_MODE', '무료 또는 유료 모드를 선택해주세요.');
@@ -89,13 +104,20 @@ export function createApp({ verifyUser = verifyFirebaseUser, ai = callAI, now = 
             return respond(providerInfo(env, body.mode));
           }
         }
+        if(path==='/v1/admin/check-ai'&&request.method==='POST'){
+          assertAdmin(user,env);
+          await runMeteredAI(env,user,'text',mode,stamp,()=>ai(env,mode,'moderate',{content:'의견이 달라도 서로 존중하며 이유를 나누고 싶어요.',context:'AI 연결 점검'}));
+          return respond({ok:true,...providerInfo(env,mode)});
+        }
         if (path === '/v1/analyze' && request.method === 'POST') {
           const body = await readJSON(request, 2_300_000);
           if (body.consent !== true) throw new ApiError(400, 'CONSENT_REQUIRED', '개인정보를 가린 사진의 AI 전송에 동의해주세요.');
           const images = parseImages(body.images);
-          await reserveAI(env, user, 'image', mode, stamp);
-          const analysis = await ai(env, mode, 'analyze', { images });
-          if (!analysis.readable) throw new ApiError(422, 'UNREADABLE', '댓글과 서로 다른 주장이 잘 보이는 사진으로 다시 첨부해주세요.');
+          const analysis=await runMeteredAI(env,user,'image',mode,stamp,async()=>{
+            const result=await ai(env,mode,'analyze',{images});
+            if(!result.readable)throw new ApiError(422,'UNREADABLE','댓글과 서로 다른 주장이 잘 보이는 사진으로 다시 첨부해주세요.');
+            return result;
+          });
           const id = crypto.randomUUID();
           // No screenshots, original OCR, names, or provider responses are persisted.
           await env.DB.prepare('INSERT INTO analyses(id,user_id,created_at,expires_at) VALUES(?,?,?,?)').bind(id, user.uid, stamp, stamp + 86_400_000).run();
@@ -108,8 +130,7 @@ export function createApp({ verifyUser = verifyFirebaseUser, ai = callAI, now = 
           if (previous) { if (previous.user_id !== user.uid) throw new ApiError(409, 'CONFLICT', '요청을 다시 시도해주세요.'); return respond({ debate: await getDebate(env, id, user) }); }
           const analysis = await env.DB.prepare('SELECT id FROM analyses WHERE id=? AND user_id=? AND expires_at>?').bind(analysisId, user.uid, stamp).first();
           if (!analysis) throw new ApiError(400, 'ANALYSIS_EXPIRED', '사진 분석을 다시 진행해주세요.');
-          await reserveAI(env, user, 'text', mode, stamp);
-          await moderate(env, mode, [draft.title, draft.summary, ...draft.issues, draft.agreeLabel, draft.disagreeLabel].join('\n'), '새 토론 글', ai);
+          await runMeteredAI(env,user,'text',mode,stamp,()=>moderate(env, mode, [draft.title, draft.summary, ...draft.issues, draft.agreeLabel, draft.disagreeLabel].join('\n'), '새 토론 글', ai));
           try { await env.DB.prepare('INSERT INTO debates(id,analysis_id,user_id,title,summary,issues,agree_label,disagree_label,created_at) VALUES(?,?,?,?,?,?,?,?,?)').bind(id, analysisId, user.uid, draft.title, draft.summary, JSON.stringify(draft.issues), draft.agreeLabel, draft.disagreeLabel, stamp).run(); }
           catch (error) { if (String(error.message).includes('UNIQUE')) throw new ApiError(409, 'ALREADY_PUBLISHED', '이미 게시한 분석 결과예요.'); throw error; }
           return respond({ debate: await getDebate(env, id, user) }, 201);
@@ -162,8 +183,7 @@ export function createApp({ verifyUser = verifyFirebaseUser, ai = callAI, now = 
               return respond({ debate, opinion: opinionDTO(previous, user) });
             }
             const alias = await anonymousAlias(user.uid, id, env.ANON_SECRET);
-            await reserveAI(env, user, 'text', mode, stamp);
-            await moderate(env, mode, content, `${debate.title}\n선택한 입장: ${body.stance === 'agree' ? debate.agreeLabel : debate.disagreeLabel}`, ai);
+            await runMeteredAI(env,user,'text',mode,stamp,()=>moderate(env, mode, content, `${debate.title}\n선택한 입장: ${body.stance === 'agree' ? debate.agreeLabel : debate.disagreeLabel}`, ai));
             await env.DB.batch([
               env.DB.prepare('INSERT INTO opinions(id,debate_id,user_id,alias,stance,content,created_at) VALUES(?,?,?,?,?,?,?)').bind(requestId, id, user.uid, alias, body.stance, content, stamp),
               env.DB.prepare('INSERT INTO votes(debate_id,user_id,stance,updated_at) VALUES(?,?,?,?) ON CONFLICT(debate_id,user_id) DO UPDATE SET stance=excluded.stance,updated_at=excluded.updated_at').bind(id, user.uid, body.stance, stamp),

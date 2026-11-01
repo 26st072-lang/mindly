@@ -17,7 +17,12 @@ const MODERATE_PROMPT = `당신은 한국어 익명 토론 게시판의 표현 �
 
 export function providerInfo(env, mode) {
   const paid = mode === 'paid';
-  return { mode: paid ? 'paid' : 'free', provider: paid ? 'OpenRouter' : 'Gemini', model: paid ? env.OPENROUTER_MODEL : env.GEMINI_MODEL, ready: Boolean(paid ? env.OPENROUTER_API_KEY : env.GEMINI_API_KEY) };
+  // A mistaken secret in a model-name binding must never enter public metadata.
+  const configured=paid?env.OPENROUTER_MODEL:env.GEMINI_MODEL;
+  const fallback=paid?'openai/gpt-6-luna':'gemini-3.5-flash-lite';
+  const valid=paid?/^openai\/gpt-[a-z0-9._-]{1,80}$/.test(configured||''):/^gemini-[a-z0-9._-]{1,80}$/.test(configured||'');
+  const model=valid?configured:fallback;
+  return { mode: paid ? 'paid' : 'free', provider: paid ? 'OpenRouter' : 'Gemini', model, ready: Boolean(paid ? env.OPENROUTER_API_KEY : env.GEMINI_API_KEY) };
 }
 function validateAI(value, task) {
   const str = (v, max) => typeof v === 'string' && v.length <= max;
@@ -46,11 +51,17 @@ export async function callAI(env, mode, task, input, fetcher = fetch) {
     url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(info.model)}:generateContent`;
     headers = { 'x-goog-api-key': env.GEMINI_API_KEY, 'Content-Type': 'application/json' };
     body = { systemInstruction: { parts: [{ text: prompt }] }, contents: [{ role: 'user', parts: [{ text: content }, ...images.map(img => ({ inlineData: { mimeType: img.mimeType, data: img.data } }))] }],
-      generationConfig: { maxOutputTokens: task === 'analyze' ? 3000 : 900, responseMimeType: 'application/json', responseJsonSchema: schema } };
+      generationConfig: { maxOutputTokens: task === 'analyze' ? 3000 : 900, responseFormat: { text: { mimeType: 'APPLICATION_JSON', schema } } } };
   }
   try {
     const response = await fetcher(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(45_000) });
     if (!response.ok) {
+      const failure=await response.json().catch(()=>({}));
+      const upstreamMessage=String(failure.error?.message||'');
+      if(mode!=='paid'&&response.status===403&&/free tier.*(?:not available|unavailable)|project.*denied access/i.test(upstreamMessage))throw new ApiError(403,'GEMINI_FREE_TIER_UNAVAILABLE','Google이 이 프로젝트의 무료 Gemini API 사용을 허용하지 않고 있어요. Google AI Studio에서 프로젝트의 무료 등급 상태를 확인해주세요. 같은 프로젝트의 키 재발급만으로는 해결되지 않아요.');
+      if(response.status===404)throw new ApiError(503,'AI_MODEL_UNAVAILABLE','설정한 AI 모델을 현재 계정에서 사용할 수 없어요. 관리자가 모델 설정을 확인해야 해요.');
+      if(response.status===401||/api.?key.*(?:not valid|invalid|expired|blocked|leaked)/i.test(upstreamMessage))throw new ApiError(503,'AI_KEY_INVALID','AI 제공자가 API 키를 승인하지 않았어요. 관리자가 등록한 키의 유효성과 사용 권한을 확인해야 해요.');
+      if(response.status===403)throw new ApiError(403,'AI_PERMISSION_DENIED','AI 제공자가 이 프로젝트의 사용 권한을 거절했어요. 관리자가 제공자 계정의 프로젝트 상태를 확인해야 해요.');
       if (response.status === 429) throw new ApiError(429, 'AI_QUOTA', '선택된 AI의 사용 한도에 도달했어요. 잠시 후 다시 시도해주세요.');
       throw new ApiError(503, 'AI_UNAVAILABLE', 'AI 검사를 완료하지 못했어요. 내용은 유지되니 잠시 후 다시 시도해주세요.');
     }
