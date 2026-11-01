@@ -29,6 +29,12 @@ npm run build
 
 이 빌드는 저장소에 포함된 3D 번들을 사용합니다. `scene.js`나 `visuals/`를 수정한 경우 먼저 `npm run build:scene`으로 번들을 갱신하세요.
 
+## GitHub Pages 배포
+
+저장소의 **Settings → Pages → Build and deployment → Source**를 **GitHub Actions**로 설정합니다. `main` 브랜치에 푸시하면 `.github/workflows/deploy-pages.yml`이 의존성을 설치하고 정적 사이트를 빌드한 뒤 `dist/`만 GitHub Pages에 배포합니다. **Actions → Deploy to GitHub Pages → Run workflow**에서 수동으로 다시 배포할 수도 있습니다.
+
+게시 주소는 완료된 워크플로의 `github-pages` 환경에 표시됩니다. 화면과 이미지·스크립트는 상대 경로를 사용하므로 프로젝트 저장소의 하위 경로에서도 실행됩니다.
+
 ## 구성
 
 - `app.js`: 기존 데이터 모델, 작성·공감·댓글·계정 기능과 상세 화면
