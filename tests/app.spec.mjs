@@ -9,7 +9,7 @@ test('auth restoration starts subscriptions once and does not wait for a slow pr
   expect(calls.every(call=>call.authResolved)).toBe(true);
   expect(calls.filter(call=>call.name==='users')).toHaveLength(1);
   expect(calls.find(call=>call.name==='users').id).toBe('reader');
-  expect(await page.evaluate(()=>window.__test.count('diary'))).toBe(1);
+  expect(await page.evaluate(()=>window.__test.count('diary'))).toBe(0);
 });
 test('late snapshots render even while search is focused, preserving text and caret',async({page})=>{
   await mockApp(page,{user:true,manual:true});await page.goto('/');
@@ -83,14 +83,13 @@ test('failed comment preserves draft; rapid saves create only one record',async(
 });
 test('logout clears private data and drafts; switching accounts does not duplicate subscriptions',async({page})=>{
   await mockApp(page,{user:true});await page.goto('/');
-  await page.evaluate(()=>{ui.diaryDraft.content='private draft';});
-  await expect.poll(()=>page.evaluate(()=>DB.diary.length)).toBe(1);
+  await page.evaluate(()=>{ui.diaryDraft.content='private draft';DB.diary=[{id:'old-diary',content:'previous private data'}];});
   await page.evaluate(()=>window.__test.signOut());
   expect(await page.evaluate(()=>({diary:DB.diary.length,draft:ui.diaryDraft.content}))).toEqual({diary:0,draft:''});
   expect(await page.evaluate(()=>window.__test.count('diary'))).toBe(0);
   await page.evaluate(()=>window.__test.signIn());
   expect(await page.evaluate(()=>window.__test.count('posts'))).toBe(1);
-  expect(await page.evaluate(()=>window.__test.count('diary'))).toBe(1);
+  expect(await page.evaluate(()=>window.__test.count('diary'))).toBe(0);
 });
 for(const width of [320,375,390,600,768,1024,1440])test(`responsive layout ${width}px: landing, feed, auth, writing, detail`,async({page})=>{
   await page.setViewportSize({width,height:900});await mockApp(page);await page.goto('/');

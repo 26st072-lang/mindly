@@ -8,6 +8,7 @@ const files = [
   'index.html',
   'app.js', 'sync.js', 'views.js', 'interaction.js', 'audio.js',
   'color-theme.js', 'account-dialogs.js',
+  'site-config.js', 'debate.js', 'community.css',
   'styles.css', 'theme.css', 'entry.css', 'color-theme.css', 'account-dialogs.css',
   'assets', 'vendor',
 ];

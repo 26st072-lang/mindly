@@ -13,7 +13,7 @@ function enhanceAccessibility(root=document.getElementById('root')){
   });
   root.querySelectorAll('input,textarea').forEach((field,index)=>{
     if(!field.id)field.id=`input-${ui.route}-${index}`;
-    if(!field.hasAttribute('aria-label')&&!root.querySelector(`label[for="${field.id}"]`))field.setAttribute('aria-label',field.placeholder||'내용');
+    if(!field.hasAttribute('aria-label')&&!field.closest('label')&&!root.querySelector(`label[for="${field.id}"]`))field.setAttribute('aria-label',field.placeholder||'내용');
   });
   root.querySelectorAll('.hashtag-opt,.seg-opt,.weather-opt').forEach(button=>button.setAttribute('aria-pressed',button.classList.contains('sel')));
   const weatherNames=['맑음','구름 조금','흐림','비','눈','바람'];
@@ -74,6 +74,8 @@ function busyMessage(){
   if(action){
     if(action==='login')return '로그인하고 있어요';
     if(action==='signup')return '계정을 만들고 있어요';
+    if(action==='debate-analysis')return '사진을 읽고 토론 초안을 만들고 있어요';
+    if(action==='debate-opinion'||action==='debate-post')return '표현을 확인하고 게시하고 있어요';
     if(action==='logout')return '로그아웃하고 있어요';
     if(action.startsWith('delete-'))return '삭제하고 있어요';
     if(action.startsWith('edit-comment-'))return '댓글을 수정하고 있어요';
@@ -84,7 +86,7 @@ function busyMessage(){
   if(ui.route==='loading')return '로그인 상태를 확인하고 있어요';
   const channel=ui.route==='main'?(ui.mainTab==='epilogue'?'epilogues':'posts'):
     ui.route==='postDetail'||ui.route==='myHearts'?'posts':ui.route==='epilogueDetail'?'epilogues':
-    ui.route==='archive'?(ui.archiveTab==='posts'?'posts':'epilogues'):ui.route==='diary'?'diary':null;
+    ui.route==='archive'?(ui.archiveGroup==='debate'?null:ui.archiveTab==='epilogues'?'epilogues':'posts'):null;
   if(channel&&!sync.offline){const state=sync.channels[channel];if(!state||!state.ready&&['loading','slow'].includes(state.status))return '이야기를 불러오고 있어요';}
   return navigationPending?'화면을 열고 있어요':'';
 }

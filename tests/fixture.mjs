@@ -1,5 +1,6 @@
 // Isolated in-browser Firestore double. No production data is written in tests.
 export async function mockApp(page,options={}){
+  await page.route('**/site-config.js',route=>route.fulfill({body:"window.MINDLY_CONFIG={workerUrl:''};",contentType:'text/javascript'}));
   await page.route('https://www.gstatic.com/firebasejs/**',route=>route.fulfill({body:'',contentType:'text/javascript'}));
   await page.addInitScript(options=>{
     const listeners=new Map(),calls=[],writes=[],authCalls=[];
@@ -13,7 +14,7 @@ export async function mockApp(page,options={}){
       meta:[{id:'banner',text:'Mindly는 서로의 이야기를 조심스레 듣는 공간이에요. 따뜻한 말 한마디 부탁드려요 💙'}]
     };
     const accounts=new Map([['reader@example.test',{uid:'reader',email:'reader@example.test',password:'secret123'}],['taken@users.mindly1-52859.firebaseapp.com',{uid:'taken',email:'taken@users.mindly1-52859.firebaseapp.com',password:'secret123'}]]);
-    let authCallback,authResolved=false,currentUser=options.user?{uid:'reader',email:'reader@example.test'}:null;
+    let authCallback,authResolved=false,currentUser=options.user?{uid:'reader',email:'reader@example.test',getIdToken:async()=> 'test-id-token'}:null;
     let writeFailure=false,writeDelay=0;
     const snapshot=(name,id,fromCache=false)=>{
       const rows=records[name]||[],docs=rows.filter(row=>!id||id===row.id).map(row=>{const data=structuredClone(row);return {id:row.id,exists:true,data:()=>structuredClone(data),ref:ref(name,row.id)};});
@@ -52,7 +53,7 @@ export async function mockApp(page,options={}){
       set:data=>write(name,id,data,'set'),update:data=>write(name,id,data,'update'),delete:()=>write(name,id,null,'delete')
     });
     const delayAuth=()=>new Promise(resolve=>setTimeout(resolve,options.authActionDelay||10));
-    const makeUser=account=>({uid:account.uid,email:account.email,async delete(){authCalls.push({method:'delete',email:account.email});accounts.delete(account.email);currentUser=null;authCallback(null);}});
+    const makeUser=account=>({uid:account.uid,email:account.email,getIdToken:async()=> 'test-id-token',async delete(){authCalls.push({method:'delete',email:account.email});accounts.delete(account.email);currentUser=null;authCallback(null);}});
     const auth={
       get currentUser(){return currentUser;},
       onAuthStateChanged(callback){authCallback=callback;setTimeout(()=>{authResolved=true;callback(currentUser);},options.authDelay||10);return ()=>{};},

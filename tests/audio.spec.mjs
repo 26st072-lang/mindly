@@ -33,11 +33,11 @@ test('the ambient score produces audible unclipped audio with a soft opening',as
   await mockApp(page);await page.goto('/');await expect(page.locator('.landing')).toBeVisible();
   const levels=await page.evaluate(async()=>{
     const context=new OfflineAudioContext(2,22050*20,22050),instrument=createAmbientInstrument(context);
-    instrument.fade(.22,1.4);scheduleAmbientBar(instrument,0,0);
+    instrument.fade(musicState.volume/100,1.4);scheduleAmbientBar(instrument,0,0);
     const output=await context.startRendering(),data=output.getChannelData(0);let sum=0,peak=0,opening=0;
     for(let i=0;i<data.length;i++){sum+=data[i]**2;peak=Math.max(peak,Math.abs(data[i]));if(i<2205)opening=Math.max(opening,Math.abs(data[i]));}
     return {rms:Math.sqrt(sum/data.length),peak,opening};
   });
-  expect(levels.rms).toBeGreaterThan(.002);expect(levels.rms).toBeLessThan(.06);
-  expect(levels.peak).toBeLessThan(.35);expect(levels.opening).toBeLessThan(.005);
+  expect(levels.rms).toBeGreaterThan(.006);expect(levels.rms).toBeLessThan(.12);
+  expect(levels.peak).toBeLessThan(.7);expect(levels.opening).toBeLessThan(.015);
 });

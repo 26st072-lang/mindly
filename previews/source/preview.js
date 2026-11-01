@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import {createMindyStage} from '../../visuals/mindy-stage.js';
 
 const concepts=[
-  {name:'햇살 드는 상담실',eyebrow:'01 · SUNLIT ROOM',title:'당신의 이야기에,<br>살며시 귀 기울여요.',description:'햇살이 스미는 작은 공간. 원래 모습 그대로의 마인디가 아주 살짝 고개를 끄덕이며, 처음 꺼내는 이야기를 기다려요.',tags:['원본 자세와 표정','창빛과 잎 그림자','윤곽을 살린 입체 볼륨'],color:'#f0f4f7'},
-  {name:'마음을 전하는 편지',eyebrow:'02 · LETTERS OF CARE',title:'작은 마음이 모여,<br>커다란 위로가 돼요.',description:'마인디 곁으로 전해지는 편지와 작은 하트. 원래 자세를 유지한 채 꼬리와 가방이 미세하게 움직이며 응원의 순간을 만들어요.',tags:['미세한 꼬리와 가방 모션','입체 편지와 하트','원본 색과 무늬 유지'],color:'#f8f1eb'},
-  {name:'고요한 밤의 기록',eyebrow:'03 · QUIET JOURNAL',title:'오늘의 마음을,<br>천천히 내려놓아요.',description:'하루가 저무는 푸른 방. 익숙한 모습의 마인디 곁에서 책장이 넘어가고, 작은 조명이 숨처럼 은은하게 밝아져요.',tags:['원본 자세를 지키는 모션','자동으로 넘어가는 책장','깊은 남색과 따뜻한 조명'],color:'#19263f'}
+  {name:'햇살 드는 상담실',eyebrow:'01 · SUNLIT ROOM',title:'당신의 이야기에,<br>살며시 귀 기울여요.',description:'햇살이 스미는 작은 공간. 원래 모습 그대로의 마인들리가 아주 살짝 고개를 끄덕이며, 처음 꺼내는 이야기를 기다려요.',tags:['원본 자세와 표정','창빛과 잎 그림자','윤곽을 살린 입체 볼륨'],color:'#f0f4f7'},
+  {name:'마음을 전하는 편지',eyebrow:'02 · LETTERS OF CARE',title:'작은 마음이 모여,<br>커다란 위로가 돼요.',description:'마인들리 곁으로 전해지는 편지와 작은 하트. 원래 자세를 유지한 채 꼬리와 가방이 미세하게 움직이며 응원의 순간을 만들어요.',tags:['미세한 꼬리와 가방 모션','입체 편지와 하트','원본 색과 무늬 유지'],color:'#f8f1eb'},
+  {name:'고요한 밤의 기록',eyebrow:'03 · QUIET JOURNAL',title:'오늘의 마음을,<br>천천히 내려놓아요.',description:'하루가 저무는 푸른 방. 익숙한 모습의 마인들리 곁에서 책장이 넘어가고, 작은 조명이 숨처럼 은은하게 밝아져요.',tags:['원본 자세를 지키는 모션','자동으로 넘어가는 책장','깊은 남색과 따뜻한 조명'],color:'#19263f'}
 ];
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 const host=document.getElementById('scene');
@@ -37,7 +37,7 @@ async function start(){
     document.getElementById('concept-eyebrow').textContent=c.eyebrow;
     document.getElementById('scene-title').textContent=c.name;
     document.getElementById('stage-panel').setAttribute('aria-labelledby','concept-'+index);
-    document.getElementById('scene').setAttribute('aria-label',c.name+' — 마인디 3D 장면, 방향키 또는 드래그로 각도 변경');
+    document.getElementById('scene').setAttribute('aria-label',c.name+' — 마인들리 3D 장면, 방향키 또는 드래그로 각도 변경');
     document.getElementById('tags').replaceChildren(...c.tags.map(text=>{const li=document.createElement('li');li.textContent=text;return li;}));
     tabs.forEach((tab,i)=>{tab.setAttribute('aria-selected',String(i===index));tab.tabIndex=i===index?0:-1;});
     stage.setVariant(index);

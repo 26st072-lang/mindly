@@ -3,14 +3,15 @@ const ARROW_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 let renderedRoute=null;
 function brandHTML(){return '<span class="brand">mindly<span>✦</span></span>';}
 function navigationHTML(scope='sidebar'){
-  const links=[['main',HOME_ICON,'마음 라운지'],['diary',ICONS.book,'나의 일기장'],['archive',ICONS.box,'나의 보관함'],['myHearts',ICONS.heart,'공감한 이야기']];
-  return `<nav class="side-nav" aria-label="주 메뉴">${links.map(([route,icon,label])=>`<button data-key="${scope}-nav-${route}" class="nav-item ${ui.route===route?'active':''}" ${ui.route===route?'aria-current="page"':''} onclick="goto('${route}')">${icon}<span>${label}</span>${ui.route===route?'<i aria-hidden="true"></i>':''}</button>`).join('')}${session.isAdmin?`<button class="nav-item" onclick="goto('adminPanel')">${ICONS.shield}관리자</button>`:''}</nav>`;
+  const links=[['home',HOME_ICON,'홈'],['main',ICONS.heart,'마음 라운지'],['debate',ICONS.comment,'익명 토론 게시판'],['archive',ICONS.box,'나의 보관함']];
+  const active=route=>route==='home'?ui.route==='main'&&ui.mainTab==='home':route==='main'?ui.route==='main'&&ui.mainTab!=='home':route==='debate'?['debate','debateWrite','debateDetail'].includes(ui.route):ui.route===route;
+  return `<nav class="side-nav" aria-label="주 메뉴">${links.map(([route,icon,label])=>`<button data-key="${scope}-nav-${route}" class="nav-item ${active(route)?'active':''}" ${active(route)?'aria-current="page"':''} onclick="${route==='home'?"goto('main',{mainTab:'home'})":route==='main'?"goto('main',{mainTab:'concern'})":`goto('${route}')`}">${icon}<span>${label}</span>${active(route)?'<i aria-hidden="true"></i>':''}</button>`).join('')}${session.isAdmin?`<button class="nav-item" onclick="goto('adminPanel')">${ICONS.shield}관리자</button>`:''}</nav>`;
 }
 function sidebarHTML(){
-  return `<aside class="sidebar" aria-label="마인들리 탐색"><button class="brand-button" onclick="goto('main',{mainTab:'home'})" aria-label="mindly 마인들리 홈">${brandHTML()}</button>${navigationHTML()}<div class="side-companion">${mascotScene('mini')}<strong>혼자가 아닌, 우리.</strong><p>작은 이야기도 괜찮아요.<br>마인디가 여기서 기다릴게요.</p></div><div class="sidebar-bottom"><span class="little-dot"></span>함께 만드는 다정한 공간</div></aside>`;
+  return `<aside class="sidebar" aria-label="마인들리 탐색"><button class="brand-button" onclick="goto('main',{mainTab:'home'})" aria-label="mindly 마인들리 홈">${brandHTML()}</button>${navigationHTML()}<div class="side-companion">${mascotScene('mini')}<strong>혼자가 아닌, 우리.</strong><p>작은 이야기도 괜찮아요.<br>마인들리가 여기서 기다릴게요.</p></div><div class="sidebar-bottom"><span class="little-dot"></span>함께 만드는 다정한 공간</div></aside>`;
 }
 function topBarHTML(){
-  return `<header class="topbar"><button id="menu-button" class="icon-btn mobile-menu" onclick="ui.menuOpen=true;render();" aria-label="메뉴 열기" aria-expanded="${ui.menuOpen}" aria-controls="menu-drawer">${ICONS.menu}</button><button class="mobile-brand" onclick="goto('main')" aria-label="마인들리 홈">${brandHTML()}</button><div class="topbar-title">${ui.route==='main'?'마음 라운지':'나의 마인들리'}<span>조금 더 다정한 오늘</span></div><form class="search-box" role="search" onsubmit="event.preventDefault();doSearch();"><input id="search-input" type="search" aria-label="이야기 검색" placeholder="어떤 이야기를 찾고 있나요?" value="${escapeHtml(ui.searchQuery)}" oninput="ui.searchQuery=this.value"><button class="search-icon-btn" type="submit" aria-label="검색">${ICONS.search}</button></form><div class="topbar-account">${themeControlHTML()}${musicControlHTML()}<button class="profile-chip" onclick="goto('mypage')" aria-label="${session.userId?escapeHtml(session.nickname)+' 내 프로필':'로그인'}"><span class="avatar">${session.userId?avatarSVG(session.avatar):ICONS.user}</span><span>${session.userId?escapeHtml(session.nickname):'로그인'}</span></button></div></header>`;
+  return `<header class="topbar"><button id="menu-button" class="icon-btn mobile-menu" onclick="ui.menuOpen=true;render();" aria-label="메뉴 열기" aria-expanded="${ui.menuOpen}" aria-controls="menu-drawer">${ICONS.menu}</button><button class="mobile-brand" onclick="goto('main')" aria-label="마인들리 홈">${brandHTML()}</button><div class="topbar-title">${communityRouteTitle()}<span>조금 더 다정한 오늘</span></div><form class="search-box" role="search" onsubmit="event.preventDefault();doSearch();"><input id="search-input" type="search" aria-label="이야기 검색" placeholder="어떤 이야기를 찾고 있나요?" value="${escapeHtml(ui.searchQuery)}" oninput="ui.searchQuery=this.value"><button class="search-icon-btn" type="submit" aria-label="검색">${ICONS.search}</button></form><div class="topbar-account">${themeControlHTML()}${musicControlHTML()}<button class="profile-chip" onclick="goto('mypage')" aria-label="${session.userId?escapeHtml(session.nickname)+' 내 프로필':'로그인'}"><span class="avatar">${session.userId?avatarSVG(session.avatar):ICONS.user}</span><span>${session.userId?escapeHtml(session.nickname):'로그인'}</span></button></div></header>`;
 }
 function render(options={}){
   if(typeof composing!=='undefined'&&composing&&options.background){compositionRenderPending=true;return;}
@@ -18,11 +19,11 @@ function render(options={}){
   const routeChanged=renderedRoute!==ui.route;
   const oldY=window.scrollY;
   const wasMenuOpen=!!document.getElementById('menu-drawer');
-  const views={loading:renderLoading,connectionError:renderConnectionError,setupNeeded:renderConnectionError,landing:renderLanding,main:renderMain,write:renderWrite,postDetail:renderPostDetail,writeEpilogue:renderWriteEpilogue,epilogueDetail:renderEpilogueDetail,archive:renderArchive,mypage:renderMyPage,diary:renderDiaryList,diaryWrite:renderDiaryWrite,myHearts:renderMyHearts,adminPanel:renderAdminPanel};
+  const views={loading:renderLoading,connectionError:renderConnectionError,setupNeeded:renderConnectionError,landing:renderLanding,main:renderMain,write:renderWrite,postDetail:renderPostDetail,writeEpilogue:renderWriteEpilogue,epilogueDetail:renderEpilogueDetail,archive:renderArchive,mypage:renderMyPage,myHearts:renderMyHearts,adminPanel:renderAdminPanel,debate:renderDebateBoard,debateWrite:renderDebateWrite,debateDetail:renderDebateDetail};
   const standalone=['landing','loading','connectionError','setupNeeded'].includes(ui.route)||(ui.route==='mypage'&&(!session.userId||pendingActions.has('signup')));
   const content=(views[ui.route]||renderLanding)();
   const pageHTML=standalone?`<main id="main-content" tabindex="-1">${content}</main>`:`<div class="app-shell">${sidebarHTML()}<div class="workspace">${topBarHTML()}<main id="main-content" class="page-content ${ui.route==='main'?'lounge':'inner-page'}" tabindex="-1">${content}</main></div></div>${ui.menuOpen?renderDrawer():''}`;
-  const html=pageHTML+(ui.accountModal?renderAccountModal():'');
+  const html=pageHTML+(ui.accountModal?renderAccountModal():'')+renderDebateFeedback();
   if(!routeChanged&&window.morphdom){
     const target=document.createElement('div');target.id='root';target.innerHTML=html;
     // Give both trees the same field IDs BEFORE reconciliation, so a realtime
@@ -39,9 +40,10 @@ function render(options={}){
   updateBusyIndicator();
   document.dispatchEvent(new Event('mindly:view-rendered'));
   document.body.classList.toggle('menu-is-open',ui.menuOpen);
-  document.body.classList.toggle('account-modal-open',!!ui.accountModal);
-  for(const child of root.children)child.inert=!!ui.accountModal&&!child.classList.contains('account-overlay');
-  const shell=document.querySelector('.app-shell');if(shell)shell.inert=ui.menuOpen||!!ui.accountModal;
+  const hasDialog=!!ui.accountModal||!!debateState.feedback;
+  document.body.classList.toggle('account-modal-open',hasDialog);
+  for(const child of root.children)child.inert=hasDialog&&!child.classList.contains('account-overlay')&&!child.classList.contains('feedback-overlay');
+  const shell=document.querySelector('.app-shell');if(shell)shell.inert=ui.menuOpen||hasDialog;
   if(ui.menuOpen&&!wasMenuOpen)document.querySelector('#menu-drawer button')?.focus({preventScroll:true});
   else if(options.navigation||routeChanged&&ui.route!=='loading')document.getElementById('main-content')?.focus({preventScroll:true});
   if(!options.navigation&&!routeChanged)window.scrollTo({top:oldY,behavior:'instant'});
@@ -74,6 +76,7 @@ function renderLanding(){
 }
 function doSearch(){
   beginNavigation();
+  if(['debate','debateDetail'].includes(ui.route)){goto('debate');return;}
   ui.mainTab='concern';ui.ageSubTab='all';ui.sort='recent';
   if(ui.route!=='main')goto('main');else render();
 }
@@ -112,11 +115,8 @@ function renderMain(){
   }
   return `<section class="lounge-intro"><div><span class="eyebrow">YOUR MIND, OUR LITTLE SPACE</span><h1>마음을 나누면,<br class="mobile-break"> 조금 가벼워질 거예요.</h1><p>어떤 이야기든 괜찮아요. 우리, 함께 들어요.</p></div><button class="btn-primary write-desktop" onclick="startWriting()">${ICONS.pencil}고민 나누기</button></section><div class="community-nav"><div class="banner">${ICONS.heart}<p>${escapeHtml(DB.banner.text)}</p></div><div class="tabs-shell"><div class="tabs-main" role="tablist" aria-label="이야기 종류">${tabs.map(([key,label])=>`<button id="tab-${key}" class="tab-main ${ui.mainTab===key?'active':''}" role="tab" aria-selected="${ui.mainTab===key}" aria-controls="feed-panel" tabindex="${ui.mainTab===key?0:-1}" onclick="setMainTab('${key}')">${label}</button>`).join('')}</div><button class="mobile-write" onclick="startWriting()" aria-label="고민 쓰기">${ICONS.pencil}</button></div></div><div id="feed-panel" role="tabpanel" aria-labelledby="tab-${ui.mainTab}" tabindex="0">${content}</div>`;
 }
-function renderHomeDashboard(){
-  const popular=DB.posts.filter(p=>p.hearts.length>0).sort((a,b)=>b.hearts.length-a.hearts.length).slice(0,2);
-  const recent=DB.posts.slice().sort((a,b)=>b.createdAt-a.createdAt).slice(0,4);
-  return `<div class="dashboard"><section class="home-hero"><div class="home-hero-text"><span class="eyebrow">A MOMENT FOR YOU</span><h2>오늘 마음의 날씨는<br>어떤가요?</h2><p>맑은 날도, 조금 흐린 날도.<br>마인디는 언제나 당신의 편이에요.</p><button class="text-link" onclick="goto('diaryWrite')">나만의 일기 남기기 ${ARROW_ICON}</button></div>${mascotScene('hero')}</section><aside class="gentle-note" aria-label="마인디의 한마디"><span class="eyebrow">A LITTLE REMINDER</span><span class="quote-mark" aria-hidden="true">“</span><p>잘하고 있지 않아도,<br>잘 지내고 있지 않아도<br><strong>여기서는 괜찮아요.</strong></p><span class="note-sign">마인디가 건네는 한마디 ✦</span></aside></div><section class="home-section"><div class="home-section-head"><div><span class="eyebrow">WARM CONNECTIONS</span><h2>지금, 함께 공감하는 이야기 <span class="hot-badge">HOT</span></h2></div><button class="text-link" onclick="setMainTab('concern','popular')">모두 보기 ${ARROW_ICON}</button></div>${syncNotice('posts')}${popular.length?`<div class="post-grid">${popular.map(p=>postCardHTML(p,true)).join('')}</div>`:collectionPlaceholder('posts','첫 공감을 기다리는 이야기들')}</section><section class="home-section"><div class="home-section-head"><div><span class="eyebrow">NEW STORIES</span><h2>방금 도착한 마음</h2></div><button class="text-link" onclick="setMainTab('concern')">모두 보기 ${ARROW_ICON}</button></div>${recent.length?`<div class="post-grid">${recent.map(p=>postCardHTML(p)).join('')}</div>`:collectionPlaceholder('posts','첫 이야기를 들려주세요')}</section>`;
-}
+function renderHomeDashboard(){ return renderCommunityHome(); }
+
 function postCardHTML(p,showHot=false){
   const hearted=!!session.userId&&p.hearts.includes(session.userId);
   const ep=!!findEpilogueByPost(p.id);
@@ -132,7 +132,7 @@ function renderAuth(){
   return `<div class="auth-page entry-screen" data-mode="login" data-has-error="${!!ui.authError}">
     <header class="auth-brand"><button onclick="goto('landing')" aria-label="mindly 마인들리 홈">${brandHTML()}</button><div class="entry-header-tools">${themeControlHTML()}${musicControlHTML()}<button class="back-btn" onclick="goto('landing')" aria-label="뒤로 가기">${ICONS.back}</button></div></header>
     <div class="auth-layout">
-      <section class="auth-intro">${entryScene()}<div class="auth-intro-copy"><h1>반가워요,<br>기다리고 있었어요.</h1><p>마인디와 함께, 나다운 이야기의 시작.</p></div></section>
+      <section class="auth-intro">${entryScene()}<div class="auth-intro-copy"><h1>반가워요,<br>기다리고 있었어요.</h1><p>마인들리와 함께, 나다운 이야기의 시작.</p></div></section>
       <section class="auth-wrap" aria-label="로그인">
         <form class="login-form" onsubmit="event.preventDefault();doLogin()" aria-busy="${pendingActions.has('login')}">
           <div class="input-group"><label for="auth-username">아이디</label><input id="auth-username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required placeholder="아이디를 입력해주세요" data-lock-action="login" value="${escapeHtml(draft.identifier)}" oninput="ui.loginDraft.identifier=this.value" aria-describedby="username-help"><span id="username-help" class="sr-only">기존 이메일 계정은 이메일로 로그인할 수 있어요.</span></div>

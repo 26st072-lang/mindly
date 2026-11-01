@@ -44,10 +44,10 @@ function avatarSVG(idx){
   return `<img src="${src}" alt="" width="64" height="64" decoding="async">`;
 }
 function logoSVG(){
-  return `<span class="mascot-crop"><img src="${MASCOT_IMG}" alt="마음을 들어주는 공룡, 마인디" class="mascot-img" width="560" height="523" decoding="async"></span>`;
+  return `<span class="mascot-crop"><img src="${MASCOT_IMG}" alt="마음을 들어주는 공룡, 마인들리" class="mascot-img" width="560" height="523" decoding="async"></span>`;
 }
 function mascotScene(size=''){
-  return `<div class="mascot-scene ${size}" aria-label="당신의 이야기를 기다리는 마인디"><span class="scene-window" aria-hidden="true"></span><span class="scene-foliage foliage-left" aria-hidden="true"></span><span class="scene-foliage foliage-right" aria-hidden="true"></span><span class="scene-shadow" aria-hidden="true"></span><div class="mascot-character">${logoSVG()}</div></div>`;
+  return `<div class="mascot-scene ${size}" aria-label="당신의 이야기를 기다리는 마인들리"><span class="scene-window" aria-hidden="true"></span><span class="scene-foliage foliage-left" aria-hidden="true"></span><span class="scene-foliage foliage-right" aria-hidden="true"></span><span class="scene-shadow" aria-hidden="true"></span><div class="mascot-character">${logoSVG()}</div></div>`;
 }
 function localDate(){
   const date = new Date();
@@ -127,7 +127,9 @@ function toast(msg){
 
 /* ============ 액션 ============ */
 function goto(route, extra){
-  if(['write','writeEpilogue','archive','diary','diaryWrite','myHearts'].includes(route) && !session.userId){
+  if(['diary','diaryWrite'].includes(route))route='archive';
+  if(route==='myHearts'){route='archive';extra={...extra,archiveGroup:'concern',archiveTab:'hearts'};}
+  if(['write','writeEpilogue','archive','debateWrite'].includes(route) && !session.userId){
     toast('로그인 후 이용할 수 있어요'); route='mypage';
   }
   if(ui.accountModal&&route!==ui.route){ui.accountModal=null;clearAccountSecrets();}
@@ -499,45 +501,16 @@ function renderEpilogueDetail(){
   </div>`;
 }
 
-function renderArchive(){
-  if(!session.userId) return renderAuth();
-  const myPosts = DB.posts.filter(p=>p.authorId===session.userId).sort((a,b)=>b.createdAt-a.createdAt);
-  const myEpilogues = DB.epilogues.filter(e=>e.authorId===session.userId);
-  const remindPosts = myPosts.filter(needsReminder);
-  const items = ui.archiveTab==='posts' ? myPosts : myEpilogues;
-  return `
-  <div class="page-header"><button class="back-btn" onclick="goto('main')">${ICONS.back}</button><h2>나의 보관함</h2></div>
-  <div class="archive-tabs">
-    <button class="tab-sub ${ui.archiveTab==='posts'?'active':''}" onclick="ui.archiveTab='posts'; render();">내가 쓴 글 (${myPosts.length})</button>
-    <button class="tab-sub ${ui.archiveTab==='epilogues'?'active':''}" onclick="ui.archiveTab='epilogues'; render();">내가 쓴 후일담 (${myEpilogues.length})</button>
-  </div>
-  ${remindPosts.length ? `<div class="reminder-note">📮 "${escapeHtml(remindPosts[0].title)}" 글을 올린 지 2주가 지났어요. 그 이야기의 후일담을 남겨보는 건 어떨까요? </div>`:''}
-  <div class="list-wrap">
-    ${syncNotice(ui.archiveTab==='posts'?'posts':'epilogues')}
-    ${!items.length ? collectionPlaceholder(ui.archiveTab==='posts'?'posts':'epilogues','아직 작성한 이야기가 없어요') : ''}
-    ${ui.archiveTab==='posts' ? items.map(p=>postCardHTML(p)).join('') : items.map(ep=>{
-      const p = DB.posts.find(x=>x.id===ep.postId);
-      return `<div class="post-card" onclick="goto('epilogueDetail',{currentEpilogueId:'${ep.id}'})"><div class="meta-row"><span>${timeAgo(ep.createdAt)}</span></div><h3>원글: ${p?escapeHtml(p.title):''}</h3><p class="content-preview">${escapeHtml(ep.content)}</p></div>`;
-    }).join('')}
-  </div>`;
-}
+function renderArchive(){ return renderOrganizedArchive(); }
 
-function renderMyHearts(){
-  if(!session.userId) return renderAuth();
-  const list = DB.posts.filter(p=>p.hearts.includes(session.userId)).sort((a,b)=>b.createdAt-a.createdAt);
-  return `
-  <div class="page-header"><button class="back-btn" onclick="goto('main')">${ICONS.back}</button><h2>내 공감</h2></div>
-  <div class="list-wrap">
-    ${syncNotice('posts')}${!list.length?collectionPlaceholder('posts','아직 공감한 글이 없어요'):list.map(p=>postCardHTML(p)).join('')}
-  </div>`;
-}
+function renderMyHearts(){ return renderOrganizedArchive(); }
 
 function renderAdminPanel(){
   if(!session.isAdmin)return `<div class="empty-state"><h2>관리자 전용 공간이에요</h2><button class="btn-primary" onclick="goto('main')">라운지로 돌아가기</button></div>`;
   const users = DB.users.filter(u=>!u.isAdmin).sort((a,b)=>(a.nickname||'').localeCompare(b.nickname||''));
   return `
   <div class="page-header"><button class="back-btn" onclick="goto('main')">${ICONS.back}</button><h2>관리자 페이지</h2></div>
-  <div class="admin-wrap">
+  <div class="admin-wrap">${renderAIAdminPanel()}
     <div class="admin-section">
       <h3>홈 배너 문구 관리</h3>
       <textarea id="banner-edit-input" class="banner-edit-area">${escapeHtml(DB.banner.text)}</textarea>

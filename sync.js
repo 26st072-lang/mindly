@@ -103,9 +103,8 @@ function initApp(){
         listen('profile',db.collection('users').doc(user.uid),snap=>{
           if(snap.exists){const p=snap.data();Object.assign(session,{username:usernameFromEmail(user.email)||p.username||null,nickname:p.nickname||'익명 공룡',avatar:Number(p.avatar)||0,ageGroup:p.ageGroup||'middle'});}
         });
-        attachDiaryListener(user.uid);
       }else if(['loading','connectionError'].includes(ui.route)||previousId)ui.route=session.isGuest?'main':'landing';
-      attachGlobalListeners();render();
+      attachGlobalListeners();document.dispatchEvent(new Event('mindly:session-changed'));render();
     },()=>{clearTimeout(authWatchdog);sync.authError=true;ui.route='connectionError';render();});
   }catch{sync.authError=true;ui.route='connectionError';render();}
 }

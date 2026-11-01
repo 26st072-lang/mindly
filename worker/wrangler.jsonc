@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mindly-debate-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": true,
+  "observability": { "enabled": false },
+  "vars": {
+    "FIREBASE_PROJECT_ID": "mindly1-52859",
+    "ALLOWED_ORIGINS": "https://26st072-lang.github.io,http://127.0.0.1:4173,http://localhost:4173",
+    "GEMINI_MODEL": "gemini-2.5-flash-lite",
+    "OPENROUTER_MODEL": "openai/gpt-6-luna",
+    "AI_DAILY_LIMIT": "200"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mindly-debate",
+      "database_id": "297b2d2a-f016-470a-82e4-7bb4edb16039",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "ratelimits": [
+    { "name": "REQUEST_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } }
+  ]
+}

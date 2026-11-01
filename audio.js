@@ -1,10 +1,19 @@
 /* An original, quiet ambient score synthesized locally. No microphone,
    external audio requests, autoplay prompts or third-party recordings. */
-const musicState={enabled:false,starting:false,context:null,instrument:null,timer:null,nextBar:0,bar:0,suspendTimer:null};
+const MUSIC_TITLE='마인들리의 작은 쉼표';
+let savedMusicVolume=65;
+try{const saved=localStorage.getItem('mindly-music-volume');if(saved!==null)savedMusicVolume=Math.max(0,Math.min(100,Number(saved)||0));}catch{}
+const musicState={enabled:false,starting:false,volume:savedMusicVolume,context:null,instrument:null,timer:null,nextBar:0,bar:0,suspendTimer:null};
 function musicControlHTML(){
   if(!(window.AudioContext||window.webkitAudioContext))return '';
   const label=musicState.starting?'배경음악 준비 중':musicState.enabled?'배경음악 끄기':'배경음악 켜기';
-  return `<button class="music-control ${musicState.enabled?'is-on':''}" data-key="music-control" type="button" onclick="toggleBackgroundMusic()" aria-label="${label}" title="${label}" aria-pressed="${musicState.enabled}" ${musicState.starting?'disabled aria-busy="true"':''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M9 18V6l10-2v12M9 9l10-2" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="6" cy="18" rx="3" ry="2.5"/><ellipse cx="16" cy="16" rx="3" ry="2.5"/>${musicState.enabled?'':'<path d="m3 3 18 18" stroke-width="1.4"/>'}</svg></button>`;
+  return `<div class="music-widget"><button class="music-control ${musicState.enabled?'is-on':''}" data-key="music-control" type="button" onclick="toggleBackgroundMusic()" aria-label="${label}" title="${MUSIC_TITLE} · ${label}" aria-pressed="${musicState.enabled}" ${musicState.starting?'disabled aria-busy="true"':''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M9 18V6l10-2v12M9 9l10-2" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="6" cy="18" rx="3" ry="2.5"/><ellipse cx="16" cy="16" rx="3" ry="2.5"/>${musicState.enabled?'':'<path d="m3 3 18 18" stroke-width="1.4"/>'}</svg></button><details class="music-info" data-key="music-info"><summary aria-label="음악 정보와 음량">ⓘ</summary><div class="music-popover"><span class="eyebrow">${musicState.enabled?'지금 재생 중':'마인들리 배경음악'}</span><strong>${MUSIC_TITLE}</strong><p>앱이 직접 연주하는 오리지널 앰비언트 곡<br>부드러운 건반과 긴 여운 · 64초 반복</p><label>음량 <output class="music-volume-output">${musicState.volume}%</output><input type="range" min="0" max="100" value="${musicState.volume}" aria-label="배경음악 음량" oninput="setMusicVolume(this.value)"></label></div></details></div>`;
+}
+function setMusicVolume(value){
+  musicState.volume=Math.max(0,Math.min(100,Number(value)||0));
+  if(musicState.enabled)musicState.instrument?.fade(musicState.volume/100,.15);
+  document.querySelectorAll('.music-volume-output').forEach(output=>output.textContent=musicState.volume+'%');
+  try{localStorage.setItem('mindly-music-volume',String(musicState.volume));}catch{}
 }
 
 function createAmbientInstrument(context){
@@ -86,7 +95,7 @@ async function toggleBackgroundMusic(){
     // This resume is inside the music button's user gesture, including iOS.
     await musicState.context.resume();
     if(musicState.context.state!=='running')throw new Error('Audio is not running');
-    musicState.enabled=true;musicState.instrument.fade(.22,1.4);startMusicSchedule();
+    musicState.enabled=true;musicState.instrument.fade(musicState.volume/100,1.4);startMusicSchedule();
   }catch{musicState.enabled=false;stopMusicSchedule();musicState.instrument?.silence(0);toast('음악을 시작하지 못했어요. 음악 버튼을 다시 눌러주세요.');}
   finally{musicState.starting=false;render();}
 }
@@ -100,7 +109,7 @@ document.addEventListener('visibilitychange',()=>{
     musicState.context.resume().then(()=>{
       if(!musicState.enabled||document.hidden)return;
       if(musicState.context.state!=='running'){musicState.enabled=false;render();return;}
-      musicState.instrument.fade(.22,1.2);startMusicSchedule();
+      musicState.instrument.fade(musicState.volume/100,1.2);startMusicSchedule();
     }).catch(()=>{musicState.enabled=false;render();});
   }
 });

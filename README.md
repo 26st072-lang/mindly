@@ -1,6 +1,8 @@
 # Mindly
 
-익명 고민과 후일담, 개인 일기를 나누는 반응형 웹 앱입니다. 기존 Firebase 프로젝트와 캐릭터 이미지를 그대로 사용합니다.
+고민상담·후일담과 사진 기반 익명 토론을 나누는 반응형 웹 앱입니다. 홈에서 마음 라운지와 익명 토론으로 이동하고, 나의 보관함에서 각 공간의 글·공감·댓글을 확인합니다. 고민상담 보관함에는 내가 쓴 후일담도 포함됩니다.
+
+AI 키 등록과 관리자 연결은 [초보자용 AI 설정 안내](docs/AI-SETUP.md)를 따라 진행합니다. 토론 API는 Cloudflare Worker와 D1, 무료 분석은 Gemini, 유료 분석은 OpenRouter의 GPT-6 Luna를 사용합니다.
 
 ## 실행
 
@@ -13,8 +15,8 @@ npm start
 
 별도 빌드는 필요 없습니다. 정적 호스팅에는 `index.html`과 아래 실행 파일·폴더를 **함께** 올려주세요.
 
-- `app.js`, `sync.js`, `views.js`, `interaction.js`, `audio.js`, `color-theme.js`, `account-dialogs.js`
-- `styles.css`, `theme.css`, `entry.css`, `color-theme.css`, `account-dialogs.css`
+- `app.js`, `sync.js`, `views.js`, `interaction.js`, `audio.js`, `color-theme.js`, `account-dialogs.js`, `site-config.js`, `debate.js`
+- `styles.css`, `theme.css`, `entry.css`, `color-theme.css`, `account-dialogs.css`, `community.css`
 - `assets/`, `vendor/`
 
 Firebase의 기존 인증 도메인과 Firestore 규칙은 호스팅 환경에 맞게 유지해야 합니다. `scripts/serve.mjs`는 로컬 미리보기용입니다.
@@ -46,6 +48,9 @@ npm run build
 - `scene.js`, `visuals/`: 원본 표면을 보존한 입체 캐릭터와 낮·밤 장면, 표시 수명 관리
 - `color-theme.js`, `color-theme.css`: 첫 화면부터 적용하는 테마 저장·전환과 앱 전체의 공통 색상
 - `audio.js`: 브라우저에서 직접 합성하는 잔잔한 배경음악과 소리 제어
+- `debate.js`, `community.css`: 익명 토론, 사진 분석 초안, 찬반·의견 검사 모달과 공간별 보관함
+- `site-config.js`: 비밀 API 키 없이 공개 Worker 주소만 설정
+- `worker/`: Firebase 로그인 검증, AI 제공자 연결, D1 저장과 관리자 모드 전환
 - `assets/`: 기존 HTML에서 분리한 원본 캐릭터 이미지
 - `vendor/`: 로컬에서 제공하는 morphdom, 3D 장면 번들과 라이선스
 
@@ -63,6 +68,8 @@ PC 첫 화면은 넓은 패널 안에서 제목과 캐릭터를 크게 배치하
 
 배경음악은 상단 음표 버튼을 누르면 시작합니다. 부드러운 건반 음색과 긴 화음으로 직접 구성한 64초 악구를 이어서 합성하며, 외부 음원·마이크 권한·오디오 다운로드는 사용하지 않습니다. 소리는 서서히 켜지고 꺼지며, 로그인·게시판 이동 중에도 이어집니다. 모든 주요 화면의 상단에서 끌 수 있고, 숨겨진 탭에서는 소리와 예약을 멈춥니다. 새로고침 후에는 사용자 클릭으로 다시 시작합니다.
 
+곡 이름은 **마인들리의 작은 쉼표**입니다. 기본 출력 음량을 22%에서 65%로 높였습니다. 음표 옆 정보 버튼에서 곡 설명과 음량 조절을 열 수 있으며, 설정한 음량은 다음 방문에도 적용됩니다.
+
 장면은 별도 재생·정지 버튼 없이 자동으로 반복됩니다. 기기의 동작 줄이기 설정에서는 정지된 포즈를 표시하며, 페이지가 보이지 않거나 장면이 화면 밖에 있으면 렌더링을 중단합니다. 모바일의 픽셀 밀도와 프레임 수를 제한하고, 로그인·게시판으로 이동할 때 장면을 재사용하거나 GPU 자원을 정리합니다. 첫 프레임 전이나 WebGL 미지원 환경에서는 원본 캐릭터가 바로 표시됩니다. 계정 기능은 3D 표시와 독립적으로 동작합니다.
 
 3D 실행 파일은 저장소에 포함되어 있어 배포 시 별도 빌드가 필요 없습니다. `scene.js` 또는 `visuals/`를 수정할 때 아래 명령으로 `vendor/entry-scene.min.js`를 갱신하세요. 독립 미리보기 HTML도 갱신하려면 `node scripts/build-3d-previews.mjs`를 실행합니다. Three.js는 0.187.0으로 고정하고 CDN 없이 제공합니다.
@@ -73,7 +80,7 @@ npm run build:scene
 
 인증 확인이 끝난 뒤 데이터 구독을 시작합니다. 프로필 응답을 기다리느라 전체 목록을 막지 않으며, 빈 로컬 캐시를 실제 빈 목록으로 처리하지 않습니다. 일부 네트워크에서 Firestore 스트리밍 응답이 지연되는 문제가 재현되어 초기화 시 long polling을 사용합니다. 관련 설정은 [Firebase 공식 문서](https://firebase.google.com/docs/reference/js/firestore.firestoresettings#firestoresettings_experimentalforcelongpolling)를 참고하세요.
 
-개인 일기는 로그인한 계정의 구독에서만 가져오며, 로그아웃 시 구독과 메모리의 개인 데이터·초안을 정리합니다. 별도 영구 브라우저 캐시는 추가하지 않았습니다. 실제 접근 권한은 Firebase 보안 규칙에서 검증해야 합니다.
+일기장 메뉴와 일기 데이터 구독을 제거했습니다. 로그아웃하면 개인 보관함·토론 초안·첨부 사진·의견 입력을 메모리에서 정리합니다. 고민상담 데이터의 접근 권한은 Firebase 보안 규칙, 새 토론의 접근 권한은 Worker에서 검증합니다.
 
 ## 계정과 댓글
 
