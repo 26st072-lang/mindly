@@ -1,0 +1,19 @@
+{
+  "name": "mindly",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build-static.mjs",
+    "build:scene": "esbuild scene.js --bundle --minify --format=iife --target=es2020 --legal-comments=eof --outfile=vendor/entry-scene.min.js",
+    "start": "node scripts/serve.mjs",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "axe-core": "^4.10.3",
+    "esbuild": "0.28.2"
+  },
+  "dependencies": {
+    "morphdom": "2.7.8",
+    "three": "0.187.0"
+  }
+}

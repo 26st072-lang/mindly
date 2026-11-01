@@ -1,0 +1,10 @@
+node_modules/
+test-results/
+playwright-report/
+.qa/
+dist/
+.env
+.env.*
+!.env.example
+.sites-runtime/
+.sites-checkout*/

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f0f4f7">
+<meta name="description" content="이름 없이 나누는 고민, 함께 건네는 다정한 위로. 마음이 쉬어가는 곳, 마인들리.">
+<title>Mindly · 마음이 쉬어가는 곳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="color-theme.js"></script>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="entry.css">
+<link rel="stylesheet" href="color-theme.css">
+<link rel="stylesheet" href="account-dialogs.css">
+<link rel="preload" as="image" href="assets/mascot.png">
+<script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script defer src="vendor/morphdom.min.js"></script>
+<script defer src="app.js"></script>
+<script defer src="sync.js"></script>
+<script defer src="views.js"></script>
+<script defer src="audio.js"></script>
+<script defer src="account-dialogs.js"></script>
+<script defer src="interaction.js"></script>
+<script defer src="vendor/entry-scene.min.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main-content">본문으로 바로가기</a>
+<div id="frame"><div id="root"><main id="main-content" class="boot-screen"><span class="brand">mindly<span>✦</span></span><p class="loading-copy" role="status"><span class="spinner" aria-hidden="true"></span>마음이 쉬어갈 공간을 준비하고 있어요.</p></main></div></div>
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+<div id="activity-indicator" class="activity-indicator" role="status" aria-live="polite" aria-atomic="true" hidden><span class="spinner" aria-hidden="true"></span><span class="activity-label"></span></div>
+<noscript><p>마인들리를 이용하려면 브라우저에서 자바스크립트를 켜주세요.</p></noscript>
+</body>
+</html>
