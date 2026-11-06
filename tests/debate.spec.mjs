@@ -2,10 +2,10 @@ import {test,expect} from '@playwright/test';
 import {mockApp} from './fixture.mjs';
 const id='aaaabbbb-1111-4111-8111-111111111111',analysisId='aaaabbbb-2222-4222-8222-222222222222';
 const debate={id,title:'학교에서 휴대전화를 자유롭게 사용해도 될까요?',summary:'자율적으로 사용할 권리가 중요하다는 의견과 수업 집중을 위해 제한해야 한다는 의견이 있어요.',issues:['수업 중 집중과 자율성을 어떻게 조화시킬까요?','긴급한 연락을 위한 사용은 어떻게 정할까요?'],agreeLabel:'자율적으로 사용해도 돼요',disagreeLabel:'수업 중에는 제한해야 해요',createdAt:Date.now(),heartCount:2,commentCount:0,agreeCount:0,disagreeCount:0,hearted:false,myStance:null,isMine:false};
-async function setup(page,{reject=false,fail=false,restricted=false,locationFail=false}={}){
+async function setup(page,{reject=false,fail=false,restricted=false,locationFail=false,initialOpinions=0}={}){
   await mockApp(page,{user:true});
   await page.route('**/site-config.js',route=>route.fulfill({body:"window.MINDLY_CONFIG={workerUrl:'https://worker.test'};",contentType:'text/javascript'}));
-  const calls=[],opinions=[];let current={...debate};
+  const calls=[],opinions=Array.from({length:initialOpinions},(_,index)=>({id:'opinion-'+index,debateId:id,alias:'익명 '+index,content:'서로 다른 입장을 존중하며 근거를 함께 살펴보면 좋겠습니다.',stance:'agree',createdAt:Date.now(),isMine:false}));let current={...debate,commentCount:initialOpinions,agreeCount:initialOpinions};
   await page.route('https://worker.test/**',async route=>{
     const request=route.request(),url=new URL(request.url()),body=request.postDataJSON();calls.push({path:url.pathname,method:request.method(),body});
     const send=(json,status=200)=>route.fulfill({json,status,headers:{'Access-Control-Allow-Origin':'*'}});
@@ -14,7 +14,7 @@ async function setup(page,{reject=false,fail=false,restricted=false,locationFail
     if(url.pathname==='/v1/admin/check-ai')return restricted?send({code:'GEMINI_FREE_TIER_UNAVAILABLE',message:'Google이 이 프로젝트의 무료 Gemini API 사용을 허용하지 않고 있어요.'},403):send({ok:true,provider:'Gemini',model:'gemini-3.5-flash-lite'});
     if(url.pathname==='/v1/analyze'&&restricted)return send({code:'GEMINI_FREE_TIER_UNAVAILABLE',message:'Google이 이 프로젝트의 무료 Gemini API 사용을 허용하지 않고 있어요.'},403);
     if(url.pathname==='/v1/analyze')return send({analysisId,readable:true,ocrText:'개인정보를 가린 댓글 내용입니다.',...debate});
-    if(url.pathname==='/v1/me')return send({items:[],hasMore:false});
+    if(url.pathname==='/v1/me')return send({items:url.searchParams.get('tab')==='comments'?opinions.map(item=>({...item,title:debate.title})):[],hasMore:false});
     if(url.pathname==='/v1/debates'&&request.method()==='POST'){current={...current,...body,isMine:true};return send({debate:current},201);}
     if(url.pathname==='/v1/debates')return send({items:[current],hasMore:false});
     if(url.pathname.endsWith('/opinions')){
@@ -98,6 +98,28 @@ test('heart and both full stance labels remain clickable after a rejected opinio
   await page.locator('.stance-option').first().click();await expect(page.getByRole('radio',{name:/찬성/})).toBeChecked();
   await heart.click();await expect(heart).toHaveAttribute('aria-pressed','false');
   await expect(page.locator('.app-shell')).not.toHaveAttribute('inert');
+});
+
+test('multiple detail opinions never create archive title links that intercept hearts, stance choices or home navigation',async({page})=>{
+  await setup(page,{initialOpinions:3});await page.evaluate(id=>goto('debateDetail',{currentDebateId:id}),id);
+  await expect(page.locator('.debate-opinions .opinion-card')).toHaveCount(3);
+  await expect(page.locator('.debate-opinions .post-title-link')).toHaveCount(0);
+  await page.locator('.stance-option').first().click();await expect(page.getByRole('radio',{name:/찬성/})).toBeChecked();
+  await page.locator('.stance-option').last().click();await expect(page.getByRole('radio',{name:/반대/})).toBeChecked();
+  const heart=page.locator('.detail-actions [data-action^="debate-heart-"]');
+  await heart.click();await expect(heart).toHaveAttribute('aria-pressed','true');
+  await page.locator('.sidebar').getByRole('button',{name:'홈',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'따뜻한 고민상담'})).toBeVisible();
+});
+
+test('archive opinion links keep their click area inside the title and never cover the sidebar',async({page})=>{
+  await setup(page,{initialOpinions:2});
+  await page.evaluate(()=>goto('archive',{archiveGroup:'debate',archiveTab:'comments'}));
+  const titles=page.locator('#archive-list-panel .opinion-card .post-title-link');
+  await expect(titles).toHaveCount(2);
+  expect(await titles.first().evaluate(button=>getComputedStyle(button,'::after').content)).toBe('none');
+  await page.locator('.sidebar').getByRole('button',{name:'홈',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'따뜻한 고민상담'})).toBeVisible();
 });
 
 test('a stalled login token refresh times out and unlocks hearts and stance controls without losing the opinion',async({page})=>{
