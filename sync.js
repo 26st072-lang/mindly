@@ -70,7 +70,7 @@ function resetPrivateState(){
   DB.diary=[];DB.users=[];
   if(!pendingActions.has('login'))ui.loginDraft.pw='';
   if(!pendingActions.has('signup'))ui.signupDraft.pw='';
-  ui.commentDrafts={};ui.epilogueDraft={content:''};
+  ui.commentDrafts={};ui.concernReply=null;ui.epilogueDraft={content:''};
   ui.editingCommentId=null;ui.editingCommentPostId=null;ui.commentEditDraft='';ui.commentEditOriginal='';
   ui.diaryDraft={date:localDate(),weather:0,title:'',content:''};resetWriteDraft();
 }

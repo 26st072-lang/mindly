@@ -36,7 +36,7 @@ test('writing fields retain their DOM node, selection and draft through snapshot
 });
 test('empty cache, permission errors, retries and real empty results are distinct',async({page})=>{
   await mockApp(page,{user:true,manual:true});await page.goto('/');
-  await page.locator('#tab-concern').click();
+  await page.getByRole('button',{name:/마음 라운지로/}).click();
   await page.evaluate(()=>{window.__test.records.posts=[];window.__test.emit('posts',true);});
   await expect(page.locator('.skeleton-list')).toBeVisible();
   await page.evaluate(()=>window.__test.fail('posts','permission-denied'));
@@ -48,8 +48,9 @@ test('empty cache, permission errors, retries and real empty results are distinc
 test('tabs keep the banner and tabs stationary, including after scrolling',async({page})=>{
   await mockApp(page,{user:true});await page.goto('/');
   await expect(page.locator('.post-card').first()).toBeVisible();
+  await page.getByRole('button',{name:/마음 라운지로/}).click();
   const original=await page.locator('.tabs-main').boundingBox();
-  for(const id of ['concern','epilogue','home']){
+  for(const id of ['concern','epilogue','concern']){
     await page.locator('#tab-'+id).click();
     expect((await page.locator('.tabs-main').boundingBox()).y).toBeCloseTo(original.y,0);
   }
@@ -69,7 +70,7 @@ test('failed comment preserves draft; rapid saves create only one record',async(
   await page.locator('#comment-input').fill('소중한 댓글 초안');
   await page.evaluate(()=>window.__test.setWrites({failure:true}));
   await page.getByRole('button',{name:'댓글 보내기'}).click();
-  await expect(page.locator('#toast')).toContainText('오류');
+  await expect(page.locator('#toast')).toContainText('유지');
   await expect(page.locator('#comment-input')).toHaveValue('소중한 댓글 초안');
   await page.evaluate(()=>window.__test.setWrites({delay:250}));
   await page.getByRole('button',{name:'댓글 보내기'}).click();
@@ -99,6 +100,7 @@ for(const width of [320,375,390,600,768,1024,1440])test(`responsive layout ${wid
   await page.getByRole('button',{name:'먼저 둘러볼게요'}).click();
   await expect(page.locator('.post-card').first()).toBeVisible();await checkOverflow();
   const heart=await page.locator('.heart-btn svg').first().boundingBox();expect(heart.width).toBe(heart.height);
+  await page.getByRole('button',{name:/마음 라운지로/}).click();
   const tabY=(await page.locator('.tabs-main').boundingBox()).y;
   await page.locator('#tab-epilogue').click();expect((await page.locator('.tabs-main').boundingBox()).y).toBeCloseTo(tabY,0);await checkOverflow();
   await page.evaluate(()=>goto('mypage'));await checkOverflow();

@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'kickin_mindly@gmail.com';
+    }
+    function validOwnComment(comment) {
+      return comment is map && comment.keys().hasAll(['id','authorId','authorNickname','authorAvatar','content','createdAt'])
+        && comment.id is string && comment.id.size() > 0
+        && comment.authorId == request.auth.uid
+        && comment.content is string && comment.content.size() <= 1000;
+    }
+    function ownCommentAddition(before,after,added,removed) {
+      return removed.size() == 0 && added.size() == 1 && after.size() == before.size() + 1
+        && after == before.concat(added) && validOwnComment(added[0])
+        && added[0].content.size() > 0 && added[0].get('deleted',false) == false;
+    }
+    function ownCommentRevision(before,after,added,removed) {
+      return removed.size() == 1 && added.size() == 1 && after.size() == before.size()
+        && before.removeAll(removed) == after.removeAll(added)
+        && removed[0].authorId == request.auth.uid && removed[0].get('deleted',false) == false
+        && validOwnComment(added[0])
+        && added[0].diff(removed[0]).affectedKeys().hasOnly(['content','editedAt','editedByAdmin','deleted','deletedAt'])
+        && added[0].get('editedByAdmin',false) == false
+        && ((added[0].get('deleted',false) == false && added[0].content.size() > 0)
+          || (added[0].get('deleted',false) == true && added[0].content == '' && added[0].keys().hasAll(['deletedAt'])));
+    }
+    function ownCommentChange() {
+      let before = resource.data.get('comments',[]);
+      let after = request.resource.data.get('comments',[]);
+      let added = after.removeAll(before);
+      let removed = before.removeAll(after);
+      return before is list && after is list &&
+        (ownCommentAddition(before,after,added,removed) || ownCommentRevision(before,after,added,removed));
+    }
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if request.auth != null && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.get('comments',[]) == [];
+      allow update: if request.auth != null && (
+        isAdmin()
+        || (resource.data.authorId == request.auth.uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['comments']))
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hearts','commentCount'])
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comments']) && ownCommentChange())
+      );
+      allow delete: if request.auth != null && (resource.data.authorId == request.auth.uid || isAdmin());
+    }
+    match /epilogues/{epId} {
+      allow read: if true;
+      allow create: if request.auth != null && request.resource.data.authorId is string;
+      allow update, delete: if request.auth != null && (resource.data.authorId == request.auth.uid || isAdmin());
+    }
+    match /users/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && (request.auth.uid == uid || isAdmin());
+    }
+    match /diary/{diaryId} {
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    match /meta/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

@@ -3,7 +3,7 @@ const ARROW_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 let renderedRoute=null;
 function brandHTML(){return '<span class="brand">mindly<span>✦</span></span>';}
 function navigationHTML(scope='sidebar'){
-  const links=[['home',HOME_ICON,'홈'],['main',ICONS.heart,'마음 라운지'],['debate',ICONS.comment,'익명 토론 게시판'],['archive',ICONS.box,'나의 보관함']];
+  const links=[['home',HOME_ICON,'홈'],['debate',ICONS.comment,'익명 토론 게시판'],['main',ICONS.heart,'마음 라운지'],['archive',ICONS.box,'나의 보관함']];
   const active=route=>route==='home'?ui.route==='main'&&ui.mainTab==='home':route==='main'?ui.route==='main'&&ui.mainTab!=='home':route==='debate'?['debate','debateWrite','debateDetail'].includes(ui.route):ui.route===route;
   return `<nav class="side-nav" aria-label="주 메뉴">${links.map(([route,icon,label])=>`<button data-key="${scope}-nav-${route}" class="nav-item ${active(route)?'active':''}" ${active(route)?'aria-current="page"':''} onclick="${route==='home'?"goto('main',{mainTab:'home'})":route==='main'?"goto('main',{mainTab:'concern'})":`goto('${route}')`}">${icon}<span>${label}</span>${active(route)?'<i aria-hidden="true"></i>':''}</button>`).join('')}${session.isAdmin?`<button class="nav-item" onclick="goto('adminPanel')">${ICONS.shield}관리자</button>`:''}</nav>`;
 }
@@ -104,7 +104,8 @@ function collectionPlaceholder(key,emptyText='아직 이야기가 없어요.'){
   return `<div class="skeleton-list" role="status" aria-label="이야기 불러오는 중">${[0,1,2].map(()=>'<div class="skeleton-card"><i></i><i></i><i></i></div>').join('')}<span class="sr-only">이야기를 불러오고 있어요.</span></div>`;
 }
 function renderMain(){
-  const tabs=[['home','추천'],['concern','고민 나누기'],['epilogue','그 후 이야기']];
+  if(ui.mainTab==='home')return renderCommunityHome();
+  const tabs=[['concern','고민 나누기'],['epilogue','그 후 이야기']];
   let content='';
   if(ui.mainTab==='home')content=renderHomeDashboard();
   else{
@@ -120,7 +121,7 @@ function renderHomeDashboard(){ return renderCommunityHome(); }
 function postCardHTML(p,showHot=false){
   const hearted=!!session.userId&&p.hearts.includes(session.userId);
   const ep=!!findEpilogueByPost(p.id);
-  return `<article class="post-card" data-key="${showHot?'hot':'post'}-${escapeHtml(p.id)}"><div class="meta-row"><span class="avatar">${avatarSVG(p.authorAvatar)}</span><span class="author-name">${escapeHtml(p.authorNickname)}</span><span class="age-pill">${ageLabel(p.ageGroup)}</span><time>${timeAgo(p.createdAt)}</time></div><h3><button class="post-title-link" onclick="goto('postDetail',{currentPostId:'${p.id}'})">${escapeHtml(p.title)}</button></h3><p class="content-preview">${escapeHtml(p.content)}</p><div class="tag-row">${p.hashtags.map(t=>`<span class="tag-chip">#${escapeHtml(t)}</span>`).join('')}</div><div class="card-foot"><button class="heart-btn ${hearted?'hearted':''}" aria-label="공감 ${p.hearts.length}개${hearted?', 취소하기':', 공감하기'}" aria-pressed="${hearted}" data-action="heart-${p.id}" onclick="toggleHeart('${p.id}')">${ICONS.heart}<span>${p.hearts.length}</span></button><button class="comment-cnt" onclick="goto('postDetail',{currentPostId:'${p.id}'});document.getElementById('comment-input')?.focus();" aria-label="댓글 ${p.comments.length}개 보기">${ICONS.comment}<span>${p.commentsAllowed?p.comments.length:'닫힘'}</span></button>${ep?`<button class="epilogue-link" onclick="viewEpilogue('${p.id}')">후일담 ${ARROW_ICON}</button>`:''}</div></article>`;
+  return `<article class="post-card" data-key="${showHot?'hot':'post'}-${escapeHtml(p.id)}"><div class="meta-row"><span class="avatar">${avatarSVG(p.authorAvatar)}</span><span class="author-name">${escapeHtml(p.authorNickname)}</span><span class="age-pill">${ageLabel(p.ageGroup)}</span><time>${timeAgo(p.createdAt)}</time></div><h3><button class="post-title-link" onclick="goto('postDetail',{currentPostId:'${p.id}'})">${escapeHtml(p.title)}</button></h3><p class="content-preview">${escapeHtml(p.content)}</p><div class="tag-row">${p.hashtags.map(t=>`<span class="tag-chip">#${escapeHtml(t)}</span>`).join('')}</div><div class="card-foot"><button class="heart-btn ${hearted?'hearted':''}" aria-label="공감 ${p.hearts.length}개${hearted?', 취소하기':', 공감하기'}" aria-pressed="${hearted}" data-action="heart-${p.id}" onclick="toggleHeart('${p.id}')">${ICONS.heart}<span>${p.hearts.length}</span></button><button class="comment-cnt" onclick="goto('postDetail',{currentPostId:'${p.id}'});document.getElementById('comment-input')?.focus();" aria-label="댓글 ${p.comments.filter(c=>!c.deleted).length}개 보기">${ICONS.comment}<span>${p.commentsAllowed?p.comments.filter(c=>!c.deleted).length:'닫힘'}</span></button>${ep?`<button class="epilogue-link" onclick="viewEpilogue('${p.id}')">후일담 ${ARROW_ICON}</button>`:''}</div></article>`;
 }
 function renderPostFeed(list){return list.length?`<div class="feed">${list.map(p=>postCardHTML(p)).join('')}</div>`:collectionPlaceholder('posts','아직 나눈 고민이 없어요');}
 function renderEpilogueFeed(list){

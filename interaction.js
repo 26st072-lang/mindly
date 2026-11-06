@@ -3,7 +3,7 @@ function enhanceAccessibility(root=document.getElementById('root')){
   root.querySelectorAll('svg').forEach(svg=>{svg.setAttribute('aria-hidden','true');svg.setAttribute('focusable','false');});
   root.querySelectorAll('button:not([type])').forEach(button=>button.type='button');
   root.querySelectorAll('.back-btn').forEach(button=>button.setAttribute('aria-label','뒤로 가기'));
-  root.querySelectorAll('.comment-send').forEach(button=>button.setAttribute('aria-label','댓글 보내기'));
+  root.querySelectorAll('.comment-send').forEach(button=>{if(!button.hasAttribute('aria-label'))button.setAttribute('aria-label','댓글 보내기');});
   root.querySelectorAll('.fab').forEach(button=>{
     if(!button.hasAttribute('aria-label'))button.setAttribute('aria-label',ui.route==='diary'?'일기 쓰기':'고민 쓰기');
   });

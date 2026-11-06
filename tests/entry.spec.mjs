@@ -63,5 +63,5 @@ test('the original character and login remain available without WebGL',async({pa
   await page.getByRole('button',{name:'마인들리 시작하기'}).click();
   await page.getByRole('textbox',{name:'아이디',exact:true}).fill('reader@example.test');
   await page.locator('#auth-password').fill('secret123');await page.locator('[data-action="login"]').click();
-  await expect(page.locator('.lounge-intro')).toBeVisible();
+  await expect(page.locator('.home-welcome')).toBeVisible();
 });

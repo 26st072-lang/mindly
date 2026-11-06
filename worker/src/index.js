@@ -1,9 +1,10 @@
-import { ApiError, verifyFirebaseUser, assertAdmin, readJSON, text, identifier, anonymousAlias } from './security.js';
+import { ApiError, verifyFirebaseUser, assertAdmin, readJSON, text, identifier } from './security.js';
 import { callAI, moderate, providerInfo } from './ai.js';
+import {opinionDTO,createOpinion,changeOpinion} from './opinions.js';
 
 const PAGE_SIZE = 20;
 const selectors = `d.*, (SELECT COUNT(*) FROM hearts h WHERE h.debate_id=d.id) AS heart_count,
-  (SELECT COUNT(*) FROM opinions o WHERE o.debate_id=d.id) AS comment_count,
+  (SELECT COUNT(*) FROM opinions o WHERE o.debate_id=d.id AND o.deleted_at IS NULL) AS comment_count,
   (SELECT COUNT(*) FROM votes v WHERE v.debate_id=d.id AND v.stance='agree') AS agree_count,
   (SELECT COUNT(*) FROM votes v WHERE v.debate_id=d.id AND v.stance='disagree') AS disagree_count,
   EXISTS(SELECT 1 FROM hearts h WHERE h.debate_id=d.id AND h.user_id=?) AS hearted,
@@ -12,9 +13,6 @@ function dto(row, user) {
   return { id: row.id, title: row.title, summary: row.summary, issues: JSON.parse(row.issues), agreeLabel: row.agree_label, disagreeLabel: row.disagree_label,
     createdAt: row.created_at, heartCount: row.heart_count, commentCount: row.comment_count, agreeCount: row.agree_count, disagreeCount: row.disagree_count,
     hearted: Boolean(row.hearted), myStance: row.my_stance || null, isMine: Boolean(user && row.user_id === user.uid) };
-}
-function opinionDTO(row, user) {
-  return { id: row.id, debateId: row.debate_id, alias: row.alias, stance: row.stance, content: row.content, createdAt: row.created_at, isMine: Boolean(user && row.user_id === user.uid), title: row.title };
 }
 async function getDebate(env, id, user) {
   const record = await env.DB.prepare(`SELECT ${selectors} FROM debates d WHERE d.id=?`).bind(user?.uid || '', user?.uid || '', id).first();
@@ -144,19 +142,25 @@ export function createApp({ verifyUser = verifyFirebaseUser, ai = callAI, now = 
           const tab = url.searchParams.get('tab') || 'posts';
           if (!['posts', 'hearts', 'comments'].includes(tab)) throw new ApiError(400, 'INVALID_TAB', '보관함 탭을 확인해주세요.');
           if (tab === 'comments') {
-            const rows = (await env.DB.prepare('SELECT o.*,d.title FROM opinions o JOIN debates d ON d.id=o.debate_id WHERE o.user_id=? ORDER BY o.created_at DESC,o.id DESC LIMIT ? OFFSET ?').bind(user.uid, PAGE_SIZE + 1, offset).all()).results;
+            const rows = (await env.DB.prepare('SELECT o.*,d.title,p.alias parent_alias FROM opinions o JOIN debates d ON d.id=o.debate_id LEFT JOIN opinions p ON p.id=o.parent_id WHERE o.user_id=? AND o.deleted_at IS NULL ORDER BY o.created_at DESC,o.id DESC LIMIT ? OFFSET ?').bind(user.uid, PAGE_SIZE + 1, offset).all()).results;
             return respond({ items: rows.slice(0, PAGE_SIZE).map(r => opinionDTO(r, user)), hasMore: rows.length > PAGE_SIZE });
           }
           const condition = tab === 'posts' ? 'd.user_id=?' : 'EXISTS(SELECT 1 FROM hearts h WHERE h.debate_id=d.id AND h.user_id=?)';
           const rows = (await env.DB.prepare(`SELECT ${selectors} FROM debates d WHERE ${condition} ORDER BY d.created_at DESC,d.id DESC LIMIT ? OFFSET ?`).bind(user.uid, user.uid, user.uid, PAGE_SIZE + 1, offset).all()).results;
           return respond({ items: rows.slice(0, PAGE_SIZE).map(r => dto(r, user)), hasMore: rows.length > PAGE_SIZE });
         }
-        const match = path.match(/^\/v1\/debates\/([a-f0-9-]+)(?:\/(heart|opinions))?$/i);
+        const match = path.match(/^\/v1\/debates\/([a-f0-9-]+)(?:\/(heart|opinions)(?:\/([a-f0-9-]+))?)?$/i);
         if (match) {
-          const id = identifier(match[1]), action = match[2];
+          const id = identifier(match[1]), action = match[2],opinionId=match[3]?identifier(match[3]):null;
+          if(action==='opinions'&&opinionId&&['PATCH','DELETE'].includes(request.method)){
+            const debate=await getDebate(env,id,user),body=await readJSON(request);
+            const opinion=await changeOpinion(env,user,id,opinionId,request.method,body,stamp,(content,stance)=>runMeteredAI(env,user,'text',mode,stamp,()=>moderate(env,mode,content,`${debate.title}\n선택한 입장: ${stance==='agree'?debate.agreeLabel:debate.disagreeLabel}`,ai)));
+            return respond({opinion,debate:await getDebate(env,id,user)});
+          }
+          if(opinionId)throw new ApiError(404,'NOT_FOUND','요청한 기능을 찾을 수 없어요.');
           if (!action && request.method === 'GET') {
             const debate = await getDebate(env, id, user);
-            const rows = (await env.DB.prepare('SELECT * FROM opinions WHERE debate_id=? ORDER BY created_at ASC,id ASC LIMIT ? OFFSET ?').bind(id, PAGE_SIZE + 1, offset).all()).results;
+            const rows = (await env.DB.prepare('SELECT o.*,p.alias parent_alias FROM opinions o LEFT JOIN opinions p ON p.id=o.parent_id WHERE o.debate_id=? ORDER BY o.created_at ASC,o.id ASC LIMIT ? OFFSET ?').bind(id, PAGE_SIZE + 1, offset).all()).results;
             return respond({ debate, opinions: rows.slice(0, PAGE_SIZE).map(r => opinionDTO(r, user)), hasMore: rows.length > PAGE_SIZE });
           }
           if (!action && request.method === 'DELETE') {
@@ -174,21 +178,9 @@ export function createApp({ verifyUser = verifyFirebaseUser, ai = callAI, now = 
             return respond({ debate: await getDebate(env, id, user) });
           }
           if (action === 'opinions' && request.method === 'POST') {
-            const body = await readJSON(request), requestId = identifier(body.requestId), content = text(body.content, '의견', 5, 500);
-            if (!['agree', 'disagree'].includes(body.stance)) throw new ApiError(400, 'STANCE_REQUIRED', '찬성 또는 반대를 선택해주세요.');
-            const debate = await getDebate(env, id, user);
-            const previous = await env.DB.prepare('SELECT * FROM opinions WHERE id=?').bind(requestId).first();
-            if (previous) {
-              if (previous.user_id !== user.uid || previous.debate_id !== id || previous.content !== content || previous.stance !== body.stance) throw new ApiError(409, 'CONFLICT', '요청을 다시 시도해주세요.');
-              return respond({ debate, opinion: opinionDTO(previous, user) });
-            }
-            const alias = await anonymousAlias(user.uid, id, env.ANON_SECRET);
-            await runMeteredAI(env,user,'text',mode,stamp,()=>moderate(env, mode, content, `${debate.title}\n선택한 입장: ${body.stance === 'agree' ? debate.agreeLabel : debate.disagreeLabel}`, ai));
-            await env.DB.batch([
-              env.DB.prepare('INSERT INTO opinions(id,debate_id,user_id,alias,stance,content,created_at) VALUES(?,?,?,?,?,?,?)').bind(requestId, id, user.uid, alias, body.stance, content, stamp),
-              env.DB.prepare('INSERT INTO votes(debate_id,user_id,stance,updated_at) VALUES(?,?,?,?) ON CONFLICT(debate_id,user_id) DO UPDATE SET stance=excluded.stance,updated_at=excluded.updated_at').bind(id, user.uid, body.stance, stamp),
-            ]);
-            return respond({ debate: await getDebate(env, id, user), opinion: { id: requestId, debateId: id, alias, stance: body.stance, content, createdAt: stamp, isMine: true } }, 201);
+            const body=await readJSON(request),debate=await getDebate(env,id,user);
+            const result=await createOpinion(env,user,id,body,stamp,(content,stance)=>runMeteredAI(env,user,'text',mode,stamp,()=>moderate(env,mode,content,`${debate.title}\n선택한 입장: ${stance==='agree'?debate.agreeLabel:debate.disagreeLabel}`,ai)));
+            return respond({debate:await getDebate(env,id,user),opinion:result.opinion},result.created?201:200);
           }
         }
         throw new ApiError(404, 'NOT_FOUND', '요청한 기능을 찾을 수 없어요.');

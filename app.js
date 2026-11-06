@@ -100,7 +100,7 @@ let ui = {
   authMode:'login', searchQuery:'', menuOpen:false, archiveTab:'posts', editingPostId:null, editingCommentId:null,
   signupDraft:{ username:'', pw:'', nickname:'', avatar:0, ageGroup:'middle' },
   loginDraft:{ identifier:'', pw:'' }, authError:'',
-  accountModal:null,signupError:'',
+  accountModal:null,signupError:'',concernReply:null,
   editingCommentPostId:null, commentEditDraft:'', commentEditOriginal:'',
   writeDraft:{ title:'', content:'', hashtags:[], commentsAllowed:true, ageGroup:'middle' },
   epilogueDraft:{ content:'' }, commentDrafts:{},
@@ -140,9 +140,11 @@ function goto(route, extra){
   window.scrollTo({top:0,behavior:'instant'});
 }
 function setMainTab(tab, sort='recent'){
+  const switchingHome=(ui.mainTab==='home')!==(tab==='home');
   beginNavigation();
   ui.mainTab=tab; ui.sort=sort; ui.ageSubTab='all'; ui.searchQuery='';
-  render();
+  render({navigation:switchingHome});
+  if(switchingHome)window.scrollTo({top:0,behavior:'instant'});
 }
 function startWriting(){ if(requireLogin()){ resetWriteDraft(); goto('write'); } }
 function closeMenu(){ ui.menuOpen=false; render(); document.getElementById('menu-button')?.focus({preventScroll:true}); }
@@ -264,29 +266,52 @@ async function toggleHeartImpl(postId){
   } catch(e){ console.error(e); toast('공감을 저장하지 못했어요. 다시 시도해주세요'); }
 }
 async function submitCommentImpl(postId){
-  if(!requireLogin()) return;
-  const input = document.getElementById('comment-input');
-  const text = (ui.commentDrafts[postId]||input?.value||'').trim();
-  if(!text) return;
-  const comment = { id:uid(), authorId:session.userId, authorNickname:session.nickname, authorAvatar:session.avatar, content:text, createdAt:Date.now() };
+  if(!requireLogin())return;
+  const text=(ui.commentDrafts[postId]||document.getElementById('comment-input')?.value||'').trim();
+  if(!text||text.length>1000){toast('댓글을 1~1000자로 입력해주세요.');return;}
+  const actor=session.userId,generation=authGeneration,parentId=ui.concernReply?.postId===postId?ui.concernReply.commentId:null;
+  const comment={id:uid(),authorId:actor,authorNickname:session.nickname,authorAvatar:session.avatar,content:text,createdAt:Date.now(),parentId};
   try{
-    await db.collection('posts').doc(postId).update({ comments: firebase.firestore.FieldValue.arrayUnion(comment) });
-    const p=DB.posts.find(p=>p.id===postId);if(p&&!p.comments.some(c=>c.id===comment.id))p.comments.push(comment);
+    const ref=db.collection('posts').doc(postId);
+    await db.runTransaction(async transaction=>{
+      const snapshot=await transaction.get(ref);if(!snapshot.exists)throw Error('게시물을 찾을 수 없어요.');
+      const data=snapshot.data(),comments=data.comments||[];
+      if(generation!==authGeneration||actor!==session.userId)throw Error('로그인 상태를 확인해주세요.');
+      if(data.commentsAllowed===false)throw Error('댓글이 닫힌 게시물이에요.');
+      if(parentId&&!comments.some(c=>c.id===parentId&&!c.deleted))throw Error('답글을 달 댓글이 삭제되었어요.');
+      transaction.update(ref,{comments:[...comments,comment]});
+    });
+    if(generation!==authGeneration)return;
+    const post=DB.posts.find(p=>p.id===postId);if(post&&!post.comments.some(c=>c.id===comment.id))post.comments.push(comment);
     if((ui.commentDrafts[postId]||'').trim()===text)ui.commentDrafts[postId]='';
-    if(input&&input.value.trim()===text)input.value='';
+    const input=document.getElementById('comment-input');if(input?.value.trim()===text)input.value='';
+    if(ui.concernReply?.postId===postId&&ui.concernReply.commentId===parentId)ui.concernReply=null;
     render();
-  } catch(e){ console.error(e); toast('댓글 등록 중 오류가 발생했어요'); }
+  }catch(error){toast(error.message||'댓글을 등록하지 못했어요. 작성한 내용은 유지돼요.');}
 }
-async function deleteCommentImpl(postId, commentId){
-  if(!session.isAdmin) return;
-  if(!confirm('이 댓글을 삭제할까요?')) return;
-  const p = DB.posts.find(x=>x.id===postId);
-  if(!p) return;
-  const newComments = p.comments.filter(c=>c.id!==commentId);
-  try{ await db.collection('posts').doc(postId).update({ comments:newComments }); render(); }
-  catch(e){ console.error(e); }
+async function deleteCommentImpl(postId,commentId){
+  const target=DB.posts.find(p=>p.id===postId)?.comments.find(c=>c.id===commentId);
+  if(!target||target.deleted||!canEditComment(target))return;
+  if(!confirm('이 댓글을 삭제할까요? 달린 답글은 유지되며 원래 내용은 지워집니다.'))return;
+  const actor=session.userId,generation=authGeneration,isAdmin=session.isAdmin;
+  try{
+    const ref=db.collection('posts').doc(postId);
+    const updated=await db.runTransaction(async transaction=>{
+      const snapshot=await transaction.get(ref);if(!snapshot.exists)throw Error('게시물을 찾을 수 없어요.');
+      const comments=snapshot.data().comments||[],current=comments.find(c=>c.id===commentId);
+      if(!current)throw Error('이미 삭제된 댓글이에요.');
+      if(generation!==authGeneration||actor!==session.userId||!isAdmin&&current.authorId!==actor)throw Error('이 댓글을 삭제할 권한이 없어요.');
+      const next={...current,content:'',deleted:true,deletedAt:Date.now()};
+      transaction.update(ref,{comments:comments.map(c=>c.id===commentId?next:c)});return next;
+    });
+    if(generation!==authGeneration)return;
+    const post=DB.posts.find(p=>p.id===postId);if(post)post.comments=post.comments.map(c=>c.id===commentId?updated:c);
+    if(ui.editingCommentId===commentId){ui.editingCommentId=null;ui.editingCommentPostId=null;ui.commentEditDraft='';ui.commentEditOriginal='';}
+    if(ui.concernReply?.commentId===commentId)ui.concernReply=null;
+    render();toast('댓글이 삭제되었어요.');
+  }catch(error){toast(error.message||'댓글을 삭제하지 못했어요. 다시 시도해주세요.');}
 }
-function canEditComment(comment){return !!session.userId&&(comment.authorId===session.userId||session.isAdmin);}
+function canEditComment(comment){return !comment.deleted&&!!session.userId&&(comment.authorId===session.userId||session.isAdmin);}
 function startEditComment(postId,commentId){
   const comment=DB.posts.find(p=>p.id===postId)?.comments.find(c=>c.id===commentId);
   if(!comment||!canEditComment(comment))return;
@@ -303,7 +328,7 @@ async function saveEditComment(postId, commentId){
   const comment=DB.posts.find(p=>p.id===postId)?.comments.find(c=>c.id===commentId);
   if(!comment||!canEditComment(comment)||ui.editingCommentId!==commentId||ui.editingCommentPostId!==postId)return;
   const text=ui.commentEditDraft.trim(),original=ui.commentEditOriginal;
-  if(!text){toast('댓글 내용을 입력해주세요');return;}
+  if(!text||text.length>1000){toast('댓글을 1~1000자로 입력해주세요');return;}
   if(text===original){cancelEditComment();return;}
   const actor=session.userId,generation=authGeneration,isAdmin=session.isAdmin;
   return runAction('edit-comment-'+commentId,async()=>{
@@ -314,7 +339,7 @@ async function saveEditComment(postId, commentId){
         if(!snapshot.exists)throw {code:'comment/not-found'};
         const comments=snapshot.data().comments||[];
         const target=comments.find(c=>c.id===commentId);
-        if(!target)throw {code:'comment/not-found'};
+        if(!target||target.deleted)throw {code:'comment/not-found'};
         if(generation!==authGeneration||actor!==session.userId||(!isAdmin&&target.authorId!==actor))throw {code:'permission-denied'};
         if(target.content!==original)throw {code:'comment/conflict'};
         const next={...target,content:text,editedAt:Date.now(),editedByAdmin:isAdmin&&target.authorId!==actor};
@@ -422,31 +447,11 @@ function renderPostDetail(){
     <div class="detail-content">${escapeHtml(p.content)}</div>
     <div class="detail-actions">
       <button class="action-pill ${hearted?'hearted':''}" aria-pressed="${!!hearted}" data-action="heart-${p.id}" onclick="toggleHeart('${p.id}')">${ICONS.heart} 공감 ${p.hearts.length}</button>
-      <span class="action-pill">${ICONS.comment} 댓글 ${p.commentsAllowed? p.comments.length : '비허용'}</span>
+      <span class="action-pill">${ICONS.comment} 댓글 ${p.commentsAllowed? p.comments.filter(c=>!c.deleted).length : '비허용'}</span>
       ${ep?`<button class="action-pill" onclick="viewEpilogue('${p.id}')">${ICONS.book} 후일담 보기</button>`:''}
     </div>
     ${isOwner && !ep ? `<div class="epilogue-cta"><p>이 고민, 그 후 어떻게 됐나요?<br>후일담을 남겨 다른 친구들에게도 힘이 되어주세요.</p><button class="small-btn" onclick="ui.epilogueDraft.content=''; goto('writeEpilogue',{currentPostId:'${p.id}'})">후일담 쓰기</button></div>`:''}
-    ${p.commentsAllowed ? `
-      <div class="comments-block">
-        <h4>댓글 ${p.comments.length}</h4>
-        ${p.comments.map(c=>{
-          const cEmail = session.isAdmin ? emailOf(c.authorId) : null;
-          const isEditing=ui.editingCommentId===c.id&&ui.editingCommentPostId===p.id;
-          const canEdit=canEditComment(c),isMine=c.authorId===session.userId;
-          return `<div class="comment-item" data-key="comment-${p.id}-${c.id}"><span class="avatar">${avatarSVG(c.authorAvatar)}</span><div class="comment-body" style="flex:1;">
-            <strong>${escapeHtml(c.authorNickname)}${cEmail?` <span class="admin-email-tag">✉ ${escapeHtml(cEmail)}</span>`:''}</strong>
-            ${isEditing? `
-              <textarea id="edit-comment-${c.id}" class="admin-comment-edit" aria-label="댓글 수정 내용" data-lock-action="edit-comment-${c.id}" oninput="ui.commentEditDraft=this.value">${escapeHtml(ui.commentEditDraft)}</textarea>
-              <div class="comment-edit-actions"><button class="admin-mini-btn" data-action="edit-comment-${c.id}" onclick="saveEditComment('${p.id}','${c.id}')">수정 저장</button><button class="admin-mini-btn ghost" data-disable-while="edit-comment-${c.id}" onclick="cancelEditComment()">취소</button></div>
-            ` : `<p>${escapeHtml(c.content)}</p>${c.editedAt?'<span class="edited-label">수정됨</span>':''}`}
-            ${canEdit&&!isEditing?`<div class="admin-comment-actions">${session.isAdmin&&!isMine?'<span class="admin-badge">관리자</span>':''}<button aria-label="${isMine?'내 댓글 수정':'댓글 수정'}" onclick="startEditComment('${p.id}','${c.id}')">수정</button>${session.isAdmin?`<button data-action="delete-comment-${c.id}" onclick="deleteComment('${p.id}','${c.id}')">삭제</button>`:''}</div>`:''}
-          </div></div>`;
-        }).join('') || '<p style="font-size:12.5px;color:var(--ink-faint);">첫 댓글을 남겨보세요.</p>'}
-        <div class="comment-input-row">
-          <input id="comment-input" aria-label="댓글 내용" value="${escapeHtml(ui.commentDrafts[p.id]||'')}" placeholder="${session.userId? '따뜻한 댓글을 남겨주세요' : '로그인 후 댓글을 남길 수 있어요'}" oninput="ui.commentDrafts['${p.id}']=this.value" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();submitComment('${p.id}');}">
-          <button class="comment-send" data-action="comment" onclick="submitComment('${p.id}')">${ICONS.send}</button>
-        </div>
-      </div>` : `<div class="locked-note">작성자가 댓글을 허용하지 않은 글이에요</div>`}
+    ${renderConcernComments(p)}
   </div>`;
 }
 

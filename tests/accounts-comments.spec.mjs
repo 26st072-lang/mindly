@@ -16,7 +16,7 @@ async function openComments(page){
 test('comment authors can edit their own comment; post ownership does not grant editing others',async({page})=>{
   await openComments(page);
   await expect(page.getByRole('button',{name:'내 댓글 수정',exact:true})).toHaveCount(1);
-  await expect(page.locator('[data-key="comment-p0-other"] button')).toHaveCount(0);
+  await expect(page.locator('[data-key="comment-p0-other"]').getByRole('button',{name:/수정|삭제/})).toHaveCount(0);
   await page.evaluate(()=>{startEditComment('p0','other');});
   await expect(page.locator('.admin-comment-edit')).toHaveCount(0);
   await page.evaluate(()=>{ui.editingCommentId='other';ui.editingCommentPostId='p0';ui.commentEditDraft='변조 시도';return saveEditComment('p0','other');});
@@ -79,7 +79,7 @@ test('username signup normalizes case, stores no password, and can log back in',
   await page.getByRole('button',{name:'회원가입 완료하기',exact:true}).click();
   await expect(page.locator('[data-action="signup"] .spinner')).toBeVisible();
   await expect(page.locator('#activity-indicator')).toContainText('계정을 만들');
-  await expect(page.locator('.lounge-intro')).toBeVisible();
+  await expect(page.locator('.home-welcome')).toBeVisible();
   expect(await page.evaluate(()=>session.username)).toBe('mindy_01');
   const profile=await page.evaluate(()=>window.__test.records.users.find(u=>u.id===session.userId));
   expect(profile.username).toBe('mindy_01');expect(profile).not.toHaveProperty('pw');expect(profile).not.toHaveProperty('password');
@@ -87,7 +87,7 @@ test('username signup normalizes case, stores no password, and can log back in',
   await page.evaluate(()=>doLogout());await expect(page.locator('.landing')).toBeVisible();
   await page.getByRole('button',{name:'마인들리 시작하기'}).click();
   await page.locator('#auth-username').fill('MINDY_01');await page.locator('#auth-password').fill('secret123');
-  await page.locator('button[data-action="login"]').click();await expect(page.locator('.lounge-intro')).toBeVisible();
+  await page.locator('button[data-action="login"]').click();await expect(page.locator('.home-welcome')).toBeVisible();
   expect(await page.evaluate(()=>session.userId)).toBe(originalId);
 });
 
@@ -110,7 +110,7 @@ test('legacy email accounts still sign in and incorrect passwords recover cleanl
   await expect(page.getByRole('alert')).toContainText('아이디 또는 비밀번호');
   await expect(page.locator('#activity-indicator')).toBeHidden();
   await page.locator('#auth-password').fill('secret123');await page.locator('button[data-action="login"]').click();
-  await expect(page.locator('.lounge-intro')).toBeVisible();
+  await expect(page.locator('.home-welcome')).toBeVisible();
   expect(await page.evaluate(()=>session.userId)).toBe('reader');
 });
 
@@ -123,7 +123,7 @@ test('a failed profile write rolls back the new account so the username can be r
   expect(await page.evaluate(()=>auth.currentUser)).toBeNull();
   await page.evaluate(()=>window.__test.setWrites({}));
   await page.getByRole('button',{name:'회원가입 완료하기',exact:true}).click();
-  await expect(page.locator('.lounge-intro')).toBeVisible();
+  await expect(page.locator('.home-welcome')).toBeVisible();
   expect(await page.evaluate(()=>session.username)).toBe('retry_user');
 });
 
