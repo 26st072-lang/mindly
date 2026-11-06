@@ -47,6 +47,10 @@ function logoSVG(){
   return `<span class="mascot-crop"><img src="${MASCOT_IMG}" alt="마음을 들어주는 공룡, 마인들리" class="mascot-img" width="560" height="523" decoding="async"></span>`;
 }
 function mascotScene(size=''){
+  if(size==='home'){
+    const star='<svg viewBox="0 0 30 30" fill="currentColor"><path d="M15 0c2.3 10.1 4.9 12.7 15 15-10.1 2.3-12.7 4.9-15 15C12.7 19.9 10.1 17.3 0 15 10.1 12.7 12.7 10.1 15 0Z"/></svg>';
+    return `<div class="mascot-scene home" role="img" aria-label="둥근 창가에서 당신의 이야기를 기다리는 마인들리 공룡"><div class="home-mascot-art" aria-hidden="true"><div class="home-window-aura"></div><div class="home-window-frame"><div class="home-window-glass"><span class="home-glass-light"></span><span class="home-sky-haze"></span><span class="home-window-mullion vertical"></span><span class="home-window-mullion horizontal"></span></div></div><div class="home-window-sill"></div><span class="home-window-star star-right">${star}</span><span class="home-window-star star-left">${star}</span><div class="home-mascot-floor"></div><div class="home-mascot-shadow"></div><div class="mascot-character">${logoSVG()}</div></div></div>`;
+  }
   return `<div class="mascot-scene ${size}" aria-label="당신의 이야기를 기다리는 마인들리"><span class="scene-window" aria-hidden="true"></span><span class="scene-foliage foliage-left" aria-hidden="true"></span><span class="scene-foliage foliage-right" aria-hidden="true"></span><span class="scene-shadow" aria-hidden="true"></span><div class="mascot-character">${logoSVG()}</div></div>`;
 }
 function localDate(){
