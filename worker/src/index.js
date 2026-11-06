@@ -79,7 +79,7 @@ export function createApp({ verifyUser = verifyFirebaseUser, ai = callAI, now = 
         if (origin && !allowed.includes(origin)) throw new ApiError(403, 'ORIGIN_DENIED', '허용되지 않은 사이트의 요청이에요.');
         if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { ...cors, 'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '600' } });
         const url = new URL(request.url), path = url.pathname.replace(/\/$/, '');
-        if (path === '/healthz' && request.method === 'GET') return respond({ ok: true, service: 'mindly-debate', database: Boolean(env.DB) });
+        if (path === '/healthz' && request.method === 'GET') return respond({ ok: true, service: 'mindly-debate', database: Boolean(env.DB), placement: request.headers.get('cf-placement') || request.cf?.colo || null });
         if (!env.DB) throw new ApiError(503, 'SETUP_REQUIRED', '토론 서버 설정을 마무리하고 있어요.');
         if (env.REQUEST_LIMITER) {
           const limit = await env.REQUEST_LIMITER.limit({ key: request.headers.get('CF-Connecting-IP') || 'unknown' });

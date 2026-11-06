@@ -4,6 +4,7 @@
   "main": "src/index.js",
   "compatibility_date": "2026-11-01",
   "workers_dev": true,
+  "placement": { "region": "aws:ap-northeast-2" },
   "observability": { "enabled": false },
   "vars": {
     "FIREBASE_PROJECT_ID": "mindly1-52859",

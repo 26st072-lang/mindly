@@ -59,6 +59,7 @@ test('AI failures distinguish request, provider, response, connection and timeou
   const env={GEMINI_API_KEY:'private-key',GEMINI_MODEL:'gemini-3.5-flash-lite'};
   const failed=(status)=>async()=>Response.json({error:{message:'private-key with internal upstream details'}},{status});
   const cases=[
+    [async()=>Response.json({error:{status:'FAILED_PRECONDITION',message:'User location is not supported for the API use.'}},{status:400}),'AI_LOCATION_UNSUPPORTED'],
     [failed(400),'AI_REQUEST_INVALID'],
     [failed(503),'AI_PROVIDER_UNAVAILABLE'],
     [async()=>{throw new TypeError('private-key network failure');},'AI_CONNECTION_FAILED'],

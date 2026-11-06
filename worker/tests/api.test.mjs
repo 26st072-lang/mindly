@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {harness,image,sampleAnalysis,ORIGIN} from './helpers.mjs';
 import {ApiError} from '../src/security.js';
+import {callAI} from '../src/ai.js';
 
 test('mutations require a verified session and allowed origin before calling AI',async()=>{
   const h=harness();
@@ -59,6 +60,31 @@ test('AI errors fail closed and never publish an unchecked opinion',async()=>{
   const debate=await h.publish();fail=true;
   const result=await h.request('/v1/debates/'+debate.id+'/opinions',{method:'POST',body:{requestId:crypto.randomUUID(),stance:'agree',content:'서로를 존중하며 이야기하면 좋겠어요.'}});
   assert.equal(result.status,503);assert.equal(h.DB.sqlite.prepare('SELECT COUNT(*) n FROM opinions').get().n,0);
+});
+
+test('a location failure preserves the opinion; real AI response parsing then requires manual revision before any vote or comment is stored',async()=>{
+  let stage='allow';
+  const feedback={allowed:false,reason:'욕설과 상대를 비하하는 표현이 포함되어 있어요.',suggestion:'저는 이 대책이 현실적인 문제를 충분히 고려하지 못했다고 생각합니다. 구체적인 근거와 보완 방안을 더 설명해 주시면 좋겠습니다.',flags:['욕설','인신공격','비하']};
+  const h=harness({ai:async(env,mode,task,input)=>{
+    if(task==='analyze')return sampleAnalysis;
+    return callAI(env,mode,task,input,async()=>stage==='location'?Response.json({error:{status:'FAILED_PRECONDITION',message:'User location is not supported for the API use.'}},{status:400}):Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:JSON.stringify(stage==='reject'?feedback:{allowed:true,reason:'',suggestion:'',flags:[]})}]}}]}));
+  }});
+  const debate=await h.publish();
+  const body={requestId:crypto.randomUUID(),stance:'disagree',content:'아니 멍청한 새끼야, 그걸 대책이라고 내놓은 수준이 한탄스럽다. 현실을 살아 개새끼들아'};
+  stage='location';
+  const unavailable=await h.request('/v1/debates/'+debate.id+'/opinions',{method:'POST',body});
+  assert.equal(unavailable.status,503);assert.equal(unavailable.data.code,'AI_LOCATION_UNSUPPORTED');
+  const usageAfterFailure=h.DB.sqlite.prepare("SELECT count FROM quotas WHERE key LIKE 'day:%:text:reader'").get().count;
+  assert.equal(usageAfterFailure,1); // Only the earlier successful review while publishing.
+  stage='reject';
+  const rejected=await h.request('/v1/debates/'+debate.id+'/opinions',{method:'POST',body});
+  assert.equal(rejected.status,422);assert.equal(rejected.data.code,'REVISE');assert.deepEqual(rejected.data.feedback,feedback);
+  assert.equal(h.DB.sqlite.prepare('SELECT COUNT(*) n FROM opinions').get().n,0);
+  assert.equal(h.DB.sqlite.prepare('SELECT COUNT(*) n FROM votes').get().n,0);
+  stage='allow';
+  const revised=await h.request('/v1/debates/'+debate.id+'/opinions',{method:'POST',body:{...body,content:feedback.suggestion}});
+  assert.equal(revised.status,201);assert.equal(revised.data.debate.disagreeCount,1);
+  assert.equal(h.DB.sqlite.prepare('SELECT content FROM opinions').get().content,feedback.suggestion);
 });
 test('public DTOs contain no account identifiers; archives and deletions enforce ownership',async()=>{
   const h=harness(),debate=await h.publish('private-author-uid');

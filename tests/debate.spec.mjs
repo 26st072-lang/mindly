@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 import {mockApp} from './fixture.mjs';
 const id='aaaabbbb-1111-4111-8111-111111111111',analysisId='aaaabbbb-2222-4222-8222-222222222222';
 const debate={id,title:'학교에서 휴대전화를 자유롭게 사용해도 될까요?',summary:'자율적으로 사용할 권리가 중요하다는 의견과 수업 집중을 위해 제한해야 한다는 의견이 있어요.',issues:['수업 중 집중과 자율성을 어떻게 조화시킬까요?','긴급한 연락을 위한 사용은 어떻게 정할까요?'],agreeLabel:'자율적으로 사용해도 돼요',disagreeLabel:'수업 중에는 제한해야 해요',createdAt:Date.now(),heartCount:2,commentCount:0,agreeCount:0,disagreeCount:0,hearted:false,myStance:null,isMine:false};
-async function setup(page,{reject=false,fail=false,restricted=false}={}){
+async function setup(page,{reject=false,fail=false,restricted=false,locationFail=false}={}){
   await mockApp(page,{user:true});
   await page.route('**/site-config.js',route=>route.fulfill({body:"window.MINDLY_CONFIG={workerUrl:'https://worker.test'};",contentType:'text/javascript'}));
   const calls=[],opinions=[];let current={...debate};
@@ -18,8 +18,9 @@ async function setup(page,{reject=false,fail=false,restricted=false}={}){
     if(url.pathname==='/v1/debates'&&request.method()==='POST'){current={...current,...body,isMine:true};return send({debate:current},201);}
     if(url.pathname==='/v1/debates')return send({items:[current],hasMore:false});
     if(url.pathname.endsWith('/opinions')){
+      if(locationFail)return send({code:'AI_LOCATION_UNSUPPORTED',message:'Google이 AI 서버의 접속 위치를 지원하지 않는 것으로 판단했어요.'},503);
       if(fail)return send({code:'AI_UNAVAILABLE',message:'AI 검사를 완료하지 못했어요. 잠시 후 다시 시도해주세요.'},503);
-      if(reject&&body.content.includes('우스워'))return send({code:'REVISE',message:'표현을 다듬어주세요.',feedback:{reason:'상대를 조롱하는 표현이 포함되어 있어요.',suggestion:'저는 다른 이유로 반대해요.',flags:['조롱']}},422);
+      if(reject&&(body.content.includes('우스워')||body.content.includes('개새끼')))return send({code:'REVISE',message:'표현을 다듬어주세요.',feedback:{reason:'상대를 조롱하거나 비하하는 표현이 포함되어 있어요.',suggestion:'저는 다른 이유로 반대해요.',flags:['조롱','비하']}},422);
       const opinion={id:body.requestId,debateId:id,alias:'익명 A1B2',content:body.content,stance:body.stance,createdAt:Date.now(),isMine:true};opinions.push(opinion);current={...current,commentCount:opinions.length,agreeCount:body.stance==='agree'?1:0,disagreeCount:body.stance==='disagree'?1:0,myStance:body.stance};return send({opinion,debate:current},201);
     }
     if(url.pathname.endsWith('/heart')){current={...current,hearted:body.hearted,heartCount:body.hearted?3:2};return send({debate:current});}
@@ -55,6 +56,33 @@ test('stance and reason are mandatory; moderation modal preserves draft and requ
 });
 test('provider errors keep the opinion and do not bypass moderation',async({page})=>{
   const state=await setup(page,{fail:true});await page.evaluate(id=>goto('debateDetail',{currentDebateId:id}),id);await page.getByRole('radio',{name:/반대/}).check();await page.locator('#debate-opinion').fill('집중을 위해 사용 시간을 정하면 좋겠어요.');await page.getByRole('button',{name:'입장과 의견 제출'}).click();await expect(page.getByRole('alert')).toContainText('AI 검사를 완료하지 못했어요');await expect(page.locator('#debate-opinion')).toHaveValue('집중을 위해 사용 시간을 정하면 좋겠어요.');expect(state.opinions).toHaveLength(0);
+});
+
+test('the reported profanity opens a suggestion modal and only the manually revised opinion is submitted',async({page})=>{
+  const state=await setup(page,{reject:true});await page.evaluate(id=>goto('debateDetail',{currentDebateId:id}),id);
+  const original='아니 멍청한 새끼야, 그걸 대책이라고 내놓은 수준이 한탄스럽다. 현실을 살아 개새끼들아';
+  await page.getByRole('radio',{name:/반대/}).check();await page.locator('#debate-opinion').fill(original);
+  await page.getByRole('button',{name:'입장과 의견 제출'}).click();
+  await expect(page.getByRole('alertdialog')).toContainText('저는 다른 이유로 반대해요.');
+  expect(state.opinions).toHaveLength(0);
+  await page.getByRole('button',{name:'확인하고 직접 수정하기'}).click();
+  await expect(page.locator('#debate-opinion')).toHaveValue(original);
+  await page.locator('#debate-opinion').fill('저는 이 대책이 현실적인 문제를 충분히 고려하지 못했다고 생각합니다.');
+  expect(state.opinions).toHaveLength(0);
+  await page.getByRole('button',{name:'입장과 의견 제출'}).click();
+  await expect(page.locator('.debate-opinions')).toContainText('현실적인 문제를 충분히 고려하지 못했다고');
+  expect(state.opinions).toHaveLength(1);expect(state.opinions[0].stance).toBe('disagree');
+});
+
+test('location failures show the actual code and preserve the selected stance and original opinion',async({page})=>{
+  const state=await setup(page,{locationFail:true});await page.evaluate(id=>goto('debateDetail',{currentDebateId:id}),id);
+  const original='이 정책의 근거를 자세히 설명해 주시면 좋겠습니다.';
+  await page.getByRole('radio',{name:/반대/}).check();await page.locator('#debate-opinion').fill(original);
+  await page.getByRole('button',{name:'입장과 의견 제출'}).click();
+  await expect(page.getByRole('alert')).toContainText('AI_LOCATION_UNSUPPORTED');
+  await expect(page.locator('#debate-opinion')).toHaveValue(original);
+  await expect(page.getByRole('radio',{name:/반대/})).toBeChecked();
+  expect(state.opinions).toHaveLength(0);
 });
 test('new debate, archive and music controls fit small screens and dark mode',async({page})=>{
   await setup(page);

@@ -14,7 +14,7 @@ async function debateRequest(path,{method='GET',body,refresh=false}={}){
     const response=await fetch(base+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body),signal:controller.signal,cache:'no-store'});
     if(response.status===401&&auth?.currentUser&&!refresh)return debateRequest(path,{method,body,refresh:true});
     const data=await response.json();
-    if(!response.ok)throw Object.assign(new Error(data.message||'연결을 확인하고 다시 시도해주세요.'),{code:data.code,feedback:data.feedback});
+    if(!response.ok){const diagnostic=/^(?:AI_|GEMINI_)[A-Z0-9_]{1,70}$/.test(data.code||'')?` (${data.code})`:'';throw Object.assign(new Error((data.message||'연결을 확인하고 다시 시도해주세요.')+diagnostic),{code:data.code,feedback:data.feedback});}
     return data;
   }catch(error){if(error.name==='AbortError')throw new Error('요청이 지연되고 있어요. 작성한 내용은 유지되니 다시 시도해주세요.');throw error;}
   finally{clearTimeout(timeout);debateState.controllers.delete(controller);}
@@ -226,7 +226,7 @@ async function checkAIConnection(){
   const epoch=debateState.epoch;debateState.adminCheck=null;
   return runAction('ai-check',async()=>{
     try{const result=await debateRequest('/v1/admin/check-ai',{method:'POST',body:{}});if(epoch===debateState.epoch)debateState.adminCheck={ok:true,message:`${result.provider}의 실제 응답을 확인했어요. (${result.model})`};}
-    catch(error){if(epoch===debateState.epoch)debateState.adminCheck={ok:false,message:error.message+(/^[A-Z][A-Z0-9_]{1,79}$/.test(error.code||'')?` (${error.code})`:'')};}
+    catch(error){if(epoch===debateState.epoch)debateState.adminCheck={ok:false,message:error.message};}
   });
 }
 document.addEventListener('mindly:view-rendered',()=>{

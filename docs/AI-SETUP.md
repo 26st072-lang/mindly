@@ -81,6 +81,12 @@ API 키를 등록하기 전에는 실제 AI 분석이 동작하지 않습니다.
 
 연결 확인이 실패하면 관리자에게 오류 코드도 표시합니다. `AI_REQUEST_INVALID`는 서버 요청 형식, `AI_PROVIDER_UNAVAILABLE`는 제공자 서버 오류, `AI_TIMEOUT`은 응답 시간 초과, `AI_CONNECTION_FAILED`는 서버 간 연결 실패입니다. `AI_RESPONSE_INVALID`는 JSON·검사 결과 형식 오류, `AI_RESPONSE_INCOMPLETE`는 응답 길이 한도, `AI_RESPONSE_BLOCKED`는 제공자의 안전 정책 중단입니다. 오류 코드에는 키나 제공자의 원본 오류 내용을 포함하지 않습니다. 새 키로 성공 응답이 확인된 뒤에도 과거 오류 문구가 남아 있으면 화면을 새로고침하고 실제 연결 확인을 다시 실행합니다.
 
+### Google이 서버 위치를 거절할 때
+
+`AI_LOCATION_UNSUPPORTED`는 Google의 `400 FAILED_PRECONDITION: User location is not supported for the API use.` 응답입니다. JSON 요청 형식이나 욕설 판정 실패와는 다른 오류입니다. Worker에는 `placement.region = "aws:ap-northeast-2"`를 지정해 서울 인근에서 처리하도록 배치 힌트를 설정했습니다. [Cloudflare Placement](https://developers.cloudflare.com/workers/configuration/placement/), [Google 지원 지역](https://ai.google.dev/gemini-api/docs/available-regions)
+
+배치 힌트는 국가를 강제하는 보장이 아니며 Google의 IP 위치 판정 오류까지 해제하지 않습니다. 같은 오류가 계속되면 실제 서버 위치와 Google 지원 상태를 확인해야 합니다. 이때 의견과 선택한 입장은 유지하고 검사되지 않은 댓글·투표는 저장하지 않습니다. 회원의 실패한 AI 사용량은 복구하며, 화면에 오류 코드를 함께 표시합니다. 지역 오류를 유료 전환이나 키 재발급으로 해결하려 하지 마세요.
+
 ### Google이 무료 API 사용을 거절할 때
 
 `GEMINI_FREE_TIER_UNAVAILABLE` 또는 `403 PERMISSION_DENIED`가 나오면 Google AI Studio의 **Projects**에서 해당 키가 연결된 프로젝트의 **Billing tier / Status**를 확인합니다. `Free tier unavailable`, `Restricted`, `Unavailable`이면 이 프로젝트의 무료 API 사용이 제한된 상태입니다. 같은 프로젝트에서 키만 재발급해도 해결되지 않습니다. 무료 사용을 유지하려면 무료 등급을 사용할 수 있는 프로젝트의 키가 필요합니다. 앱에서는 이 제한을 해제하거나 유료로 자동 전환하지 않습니다. [Google 공식 문제 해결 안내](https://ai.google.dev/gemini-api/docs/troubleshooting#project-restricted-or-unavailable)
