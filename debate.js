@@ -3,13 +3,24 @@ const debateState={config:null,configLoading:false,configError:'',list:[],listLo
 Object.assign(ui,{archiveGroup:'concern',currentDebateId:null});
 function workerEndpoint(){return String(window.MINDLY_CONFIG?.workerUrl||'').replace(/\/+$/,'');}
 function communityRouteTitle(){return ui.route==='main'?(ui.mainTab==='home'?'마인들리 홈':'마음 라운지'):ui.route.startsWith('debate')?'익명 토론 게시판':ui.route==='archive'?'나의 보관함':'나의 마인들리';}
+function getDebateToken(user,refresh,signal){
+  return new Promise((resolve,reject)=>{
+    let timer;
+    const finish=(settle,value)=>{clearTimeout(timer);signal.removeEventListener('abort',abort);settle(value);};
+    const abort=()=>finish(reject,new DOMException('Request aborted','AbortError'));
+    if(signal.aborted){abort();return;}
+    signal.addEventListener('abort',abort,{once:true});
+    timer=setTimeout(()=>finish(reject,new Error('로그인 상태 확인이 지연되고 있어요. 작성한 내용은 유지되니 다시 시도해주세요.')),15_000);
+    Promise.resolve().then(()=>user.getIdToken(refresh)).then(token=>finish(resolve,token),error=>finish(reject,error));
+  });
+}
 async function debateRequest(path,{method='GET',body,refresh=false}={}){
   const base=workerEndpoint();
   if(!base)throw Object.assign(new Error('익명 토론 공간을 준비하고 있어요. 잠시 후 다시 방문해주세요.'),{code:'SETUP_REQUIRED'});
   const controller=new AbortController();debateState.controllers.add(controller);const timeout=setTimeout(()=>controller.abort(),65000);
   try{
     const headers={};
-    if(auth?.currentUser){headers.Authorization='Bearer '+await auth.currentUser.getIdToken(refresh);}
+    if(auth?.currentUser){headers.Authorization='Bearer '+await getDebateToken(auth.currentUser,refresh,controller.signal);}
     if(body!==undefined)headers['Content-Type']='application/json';
     const response=await fetch(base+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body),signal:controller.signal,cache:'no-store'});
     if(response.status===401&&auth?.currentUser&&!refresh)return debateRequest(path,{method,body,refresh:true});

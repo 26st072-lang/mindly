@@ -84,6 +84,56 @@ test('location failures show the actual code and preserve the selected stance an
   await expect(page.getByRole('radio',{name:/반대/})).toBeChecked();
   expect(state.opinions).toHaveLength(0);
 });
+
+test('heart and both full stance labels remain clickable after a rejected opinion and closing the suggestion modal',async({page})=>{
+  await setup(page,{reject:true});await page.evaluate(id=>goto('debateDetail',{currentDebateId:id}),id);
+  const heart=page.locator('.detail-actions [data-action^="debate-heart-"]');
+  await heart.click();await expect(heart).toHaveAttribute('aria-pressed','true');
+  await page.locator('.stance-option').first().click();await expect(page.getByRole('radio',{name:/찬성/})).toBeChecked();
+  await page.locator('.stance-option').last().click();await expect(page.getByRole('radio',{name:/반대/})).toBeChecked();
+  await page.locator('#debate-opinion').fill('그렇게 생각하는 사람은 우스워요.');
+  await page.getByRole('button',{name:'입장과 의견 제출'}).click();await expect(page.getByRole('alertdialog')).toBeVisible();
+  await page.getByRole('button',{name:'확인하고 직접 수정하기'}).click();
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await page.locator('.stance-option').first().click();await expect(page.getByRole('radio',{name:/찬성/})).toBeChecked();
+  await heart.click();await expect(heart).toHaveAttribute('aria-pressed','false');
+  await expect(page.locator('.app-shell')).not.toHaveAttribute('inert');
+});
+
+test('a stalled login token refresh times out and unlocks hearts and stance controls without losing the opinion',async({page})=>{
+  const state=await setup(page);await page.evaluate(id=>goto('debateDetail',{currentDebateId:id}),id);
+  await page.locator('.stance-choice').waitFor();
+  await page.getByRole('radio',{name:/반대/}).check();await page.locator('#debate-opinion').fill('이 정책의 근거를 자세히 설명해 주시면 좋겠습니다.');
+  await page.clock.install();
+  await page.evaluate(()=>{auth.currentUser.getIdToken=()=>new Promise(()=>{});});
+  const heart=page.locator('.detail-actions [data-action^="debate-heart-"]');
+  await heart.click();await expect(heart).toBeDisabled();
+  await page.getByRole('button',{name:'입장과 의견 제출'}).click();
+  await expect(page.getByRole('radio',{name:/반대/})).toBeDisabled();
+  await page.clock.fastForward(16_000);
+  await expect(heart).toBeEnabled({timeout:2000});
+  await expect(page.getByRole('radio',{name:/반대/})).toBeEnabled({timeout:2000});
+  await expect(page.locator('#debate-opinion')).toHaveValue('이 정책의 근거를 자세히 설명해 주시면 좋겠습니다.');
+  await expect(page.getByRole('alert')).toContainText('로그인 상태 확인이 지연');
+  expect(state.calls.filter(call=>call.path.endsWith('/heart')||call.path.endsWith('/opinions'))).toHaveLength(0);
+  await page.evaluate(()=>{auth.currentUser.getIdToken=async()=> 'test-id-token';});
+  await heart.click();await expect(heart).toHaveAttribute('aria-pressed','true');
+  await page.locator('.stance-option').first().click();await expect(page.getByRole('radio',{name:/찬성/})).toBeChecked();
+  await page.getByRole('button',{name:'입장과 의견 제출'}).click();
+  await expect(page.locator('.debate-opinions')).toContainText('이 정책의 근거를 자세히 설명해 주시면 좋겠습니다.');
+  expect(state.opinions).toHaveLength(1);
+});
+
+test('logging out cancels a stalled token refresh and releases pending debate controls',async({page})=>{
+  const state=await setup(page);await page.evaluate(id=>goto('debateDetail',{currentDebateId:id}),id);
+  await page.locator('.stance-choice').waitFor();
+  await page.evaluate(()=>{auth.currentUser.getIdToken=()=>new Promise(()=>{});});
+  await page.locator('.detail-actions [data-action^="debate-heart-"]').click();
+  await expect.poll(()=>page.evaluate(()=>pendingActions.size)).toBe(1);
+  await page.evaluate(()=>window.__test.signOut());
+  await expect.poll(()=>page.evaluate(()=>pendingActions.size)).toBe(0);
+  expect(state.calls.filter(call=>call.path.endsWith('/heart'))).toHaveLength(0);
+});
 test('new debate, archive and music controls fit small screens and dark mode',async({page})=>{
   await setup(page);
   for(const width of [320,390,768,1440]){
