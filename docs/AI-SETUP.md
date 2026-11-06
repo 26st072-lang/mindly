@@ -79,6 +79,8 @@ API 키를 등록하기 전에는 실제 AI 분석이 동작하지 않습니다.
 
 관리자 화면의 **AI 실제 연결 확인**은 키의 존재 여부만 보는 대신 선택한 제공자에 실제 검사 요청 1회를 보냅니다. 키가 등록되어 있어도 프로젝트 권한이나 무료 이용 자격 문제로 실패할 수 있습니다.
 
+연결 확인이 실패하면 관리자에게 오류 코드도 표시합니다. `AI_REQUEST_INVALID`는 서버 요청 형식, `AI_PROVIDER_UNAVAILABLE`는 제공자 서버 오류, `AI_TIMEOUT`은 응답 시간 초과, `AI_CONNECTION_FAILED`는 서버 간 연결 실패입니다. `AI_RESPONSE_INVALID`는 JSON·검사 결과 형식 오류, `AI_RESPONSE_INCOMPLETE`는 응답 길이 한도, `AI_RESPONSE_BLOCKED`는 제공자의 안전 정책 중단입니다. 오류 코드에는 키나 제공자의 원본 오류 내용을 포함하지 않습니다. 새 키로 성공 응답이 확인된 뒤에도 과거 오류 문구가 남아 있으면 화면을 새로고침하고 실제 연결 확인을 다시 실행합니다.
+
 ### Google이 무료 API 사용을 거절할 때
 
 `GEMINI_FREE_TIER_UNAVAILABLE` 또는 `403 PERMISSION_DENIED`가 나오면 Google AI Studio의 **Projects**에서 해당 키가 연결된 프로젝트의 **Billing tier / Status**를 확인합니다. `Free tier unavailable`, `Restricted`, `Unavailable`이면 이 프로젝트의 무료 API 사용이 제한된 상태입니다. 같은 프로젝트에서 키만 재발급해도 해결되지 않습니다. 무료 사용을 유지하려면 무료 등급을 사용할 수 있는 프로젝트의 키가 필요합니다. 앱에서는 이 제한을 해제하거나 유료로 자동 전환하지 않습니다. [Google 공식 문제 해결 안내](https://ai.google.dev/gemini-api/docs/troubleshooting#project-restricted-or-unavailable)

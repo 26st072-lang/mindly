@@ -226,7 +226,7 @@ async function checkAIConnection(){
   const epoch=debateState.epoch;debateState.adminCheck=null;
   return runAction('ai-check',async()=>{
     try{const result=await debateRequest('/v1/admin/check-ai',{method:'POST',body:{}});if(epoch===debateState.epoch)debateState.adminCheck={ok:true,message:`${result.provider}의 실제 응답을 확인했어요. (${result.model})`};}
-    catch(error){if(epoch===debateState.epoch)debateState.adminCheck={ok:false,message:error.message};}
+    catch(error){if(epoch===debateState.epoch)debateState.adminCheck={ok:false,message:error.message+(/^[A-Z][A-Z0-9_]{1,79}$/.test(error.code||'')?` (${error.code})`:'')};}
   });
 }
 document.addEventListener('mindly:view-rendered',()=>{

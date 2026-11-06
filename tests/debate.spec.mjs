@@ -76,6 +76,16 @@ test('admin inference check distinguishes a configured key from a restricted Gem
   await page.evaluate(()=>{session.isAdmin=true;goto('adminPanel');});
   await page.getByRole('button',{name:'AI 실제 연결 확인'}).click();
   await expect(page.locator('.ai-connection-check')).toContainText('무료 Gemini API 사용을 허용하지 않고');
+  await expect(page.locator('.ai-connection-check')).toContainText('GEMINI_FREE_TIER_UNAVAILABLE');
+  expect(state.calls.filter(call=>call.path==='/v1/admin/check-ai')).toHaveLength(1);
+});
+
+test('admin check reports success only after the actual inference request completes',async({page})=>{
+  const state=await setup(page);
+  await page.evaluate(()=>{session.isAdmin=true;goto('adminPanel');});
+  await expect(page.locator('.ai-connection-check')).not.toContainText('실제 응답을 확인했어요');
+  await page.getByRole('button',{name:'AI 실제 연결 확인'}).click();
+  await expect(page.locator('.ai-connection-check')).toContainText('Gemini의 실제 응답을 확인했어요. (gemini-3.5-flash-lite)');
   expect(state.calls.filter(call=>call.path==='/v1/admin/check-ai')).toHaveLength(1);
 });
 test('a photo provider restriction preserves attachments and input for a retry after access is fixed',async({page})=>{

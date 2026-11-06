@@ -54,3 +54,21 @@ test('a secret accidentally placed in a model setting is never returned in metad
   const info=providerInfo({OPENROUTER_MODEL:'sk-or-v1-private-model-setting',OPENROUTER_API_KEY:'test'},'paid');
   assert.equal(info.model,'openai/gpt-6-luna');assert.ok(!JSON.stringify(info).includes('private-model-setting'));
 });
+
+test('AI failures distinguish request, provider, response, connection and timeout stages without exposing upstream details',async()=>{
+  const env={GEMINI_API_KEY:'private-key',GEMINI_MODEL:'gemini-3.5-flash-lite'};
+  const failed=(status)=>async()=>Response.json({error:{message:'private-key with internal upstream details'}},{status});
+  const cases=[
+    [failed(400),'AI_REQUEST_INVALID'],
+    [failed(503),'AI_PROVIDER_UNAVAILABLE'],
+    [async()=>{throw new TypeError('private-key network failure');},'AI_CONNECTION_FAILED'],
+    [async()=>{throw new DOMException('private-key timeout','TimeoutError');},'AI_TIMEOUT'],
+    [async()=>new Response('not JSON'),'AI_RESPONSE_INVALID'],
+    [async()=>Response.json({candidates:[{content:{parts:[{text:'{"allowed":"true"}'}]}}]}),'AI_RESPONSE_INVALID'],
+    [async()=>Response.json({candidates:[{finishReason:'MAX_TOKENS',content:{parts:[{text:'{"allowed":'}]}}]}),'AI_RESPONSE_INCOMPLETE'],
+    [async()=>Response.json({promptFeedback:{blockReason:'SAFETY'}}),'AI_RESPONSE_BLOCKED'],
+  ];
+  for(const [fetcher,code] of cases){
+    await assert.rejects(()=>callAI(env,'free','moderate',{content:'안녕하세요'},fetcher),error=>error.code===code&&!JSON.stringify(error).includes('private-key')&&!error.message.includes('internal'));
+  }
+});

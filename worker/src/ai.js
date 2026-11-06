@@ -53,6 +53,7 @@ export async function callAI(env, mode, task, input, fetcher = fetch) {
     body = { systemInstruction: { parts: [{ text: prompt }] }, contents: [{ role: 'user', parts: [{ text: content }, ...images.map(img => ({ inlineData: { mimeType: img.mimeType, data: img.data } }))] }],
       generationConfig: { maxOutputTokens: task === 'analyze' ? 3000 : 900, responseFormat: { text: { mimeType: 'APPLICATION_JSON', schema } } } };
   }
+  let phase = 'request';
   try {
     const response = await fetcher(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(45_000) });
     if (!response.ok) {
@@ -63,14 +64,22 @@ export async function callAI(env, mode, task, input, fetcher = fetch) {
       if(response.status===401||/api.?key.*(?:not valid|invalid|expired|blocked|leaked)/i.test(upstreamMessage))throw new ApiError(503,'AI_KEY_INVALID','AI 제공자가 API 키를 승인하지 않았어요. 관리자가 등록한 키의 유효성과 사용 권한을 확인해야 해요.');
       if(response.status===403)throw new ApiError(403,'AI_PERMISSION_DENIED','AI 제공자가 이 프로젝트의 사용 권한을 거절했어요. 관리자가 제공자 계정의 프로젝트 상태를 확인해야 해요.');
       if (response.status === 429) throw new ApiError(429, 'AI_QUOTA', '선택된 AI의 사용 한도에 도달했어요. 잠시 후 다시 시도해주세요.');
+      if (response.status === 400 || response.status === 422) throw new ApiError(503, 'AI_REQUEST_INVALID', 'AI 제공자가 서버의 요청 형식을 처리하지 못했어요. 관리자에게 이 오류 코드를 알려주세요.');
+      if (response.status >= 500) throw new ApiError(503, 'AI_PROVIDER_UNAVAILABLE', 'AI 제공자 서버에서 일시적인 오류가 발생했어요. 잠시 후 다시 시도해주세요.');
       throw new ApiError(503, 'AI_UNAVAILABLE', 'AI 검사를 완료하지 못했어요. 내용은 유지되니 잠시 후 다시 시도해주세요.');
     }
+    phase = 'response';
     const result = await response.json();
+    const finish = mode === 'paid' ? result.choices?.[0]?.finish_reason : result.candidates?.[0]?.finishReason;
+    if (finish === 'MAX_TOKENS' || finish === 'length') throw new ApiError(503, 'AI_RESPONSE_INCOMPLETE', 'AI 응답이 끝나기 전에 길이 한도에 도달했어요. 관리자에게 이 오류 코드를 알려주세요.');
+    if (result.promptFeedback?.blockReason && result.promptFeedback.blockReason !== 'BLOCK_REASON_UNSPECIFIED' || ['SAFETY','RECITATION','BLOCKLIST','PROHIBITED_CONTENT','IMAGE_SAFETY','content_filter'].includes(finish) || result.choices?.[0]?.message?.refusal) throw new ApiError(422, 'AI_RESPONSE_BLOCKED', 'AI 제공자의 안전 정책으로 응답이 중단됐어요. 사진이나 내용을 확인해주세요.');
     const output = mode === 'paid' ? result.choices?.[0]?.message?.content : result.candidates?.[0]?.content?.parts?.filter(p => !p.thought).map(p => p.text || '').join('');
     return validateAI(JSON.parse(output), task);
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    throw new ApiError(503, 'AI_UNAVAILABLE', 'AI 검사를 완료하지 못했어요. 내용은 유지되니 잠시 후 다시 시도해주세요.');
+    if (error.name === 'TimeoutError' || error.name === 'AbortError') throw new ApiError(504, 'AI_TIMEOUT', 'AI 응답을 기다리는 시간이 초과됐어요. 내용은 유지되니 다시 시도해주세요.');
+    if (phase === 'response') throw new ApiError(503, 'AI_RESPONSE_INVALID', 'AI 응답이 필요한 형식과 맞지 않아 처리를 중단했어요. 내용은 유지되니 다시 시도해주세요.');
+    throw new ApiError(503, 'AI_CONNECTION_FAILED', '서버에서 AI 제공자에 연결하지 못했어요. 잠시 후 다시 시도해주세요.');
   }
 }
 export async function moderate(env, mode, content, context, caller = callAI) {
