@@ -5,7 +5,9 @@
     "build": "node scripts/build-static.mjs",
     "build:scene": "esbuild scene.js --bundle --minify --format=iife --target=es2020 --legal-comments=eof --outfile=vendor/entry-scene.min.js",
     "start": "node scripts/serve.mjs",
-    "test": "playwright test"
+    "dev:extension": "node scripts/dev-extension.mjs",
+    "test": "playwright test",
+    "test:extension": "node --test mindly-extension/tests/shared.test.mjs && playwright test --config mindly-extension/playwright.config.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",

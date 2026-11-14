@@ -1,0 +1,4 @@
+# Local testing only. Copy this file to .dev.vars, or use start-extension-test.cmd.
+# Put a valid Gemini key inside the quotation marks to test real AI responses.
+# Keep .dev.vars private. It is ignored by Git and blocked by the local web server.
+GEMINI_API_KEY=""

@@ -133,7 +133,7 @@ function toast(msg){
 function goto(route, extra){
   if(['diary','diaryWrite'].includes(route))route='archive';
   if(route==='myHearts'){route='archive';extra={...extra,archiveGroup:'concern',archiveTab:'hearts'};}
-  if(['write','writeEpilogue','archive','debateWrite'].includes(route) && !session.userId){
+  if(['write','writeEpilogue','archive','debateWrite','debateImport'].includes(route) && !session.userId){
     toast('로그인 후 이용할 수 있어요'); route='mypage';
   }
   if(ui.accountModal&&route!==ui.route){ui.accountModal=null;clearAccountSecrets();}

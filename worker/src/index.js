@@ -90,7 +90,7 @@ export function createApp({ verifyUser = verifyFirebaseUser, ai = callAI, now = 
         const stamp = now();
         if (write) await consumeQuota(env, `minute:${Math.floor(stamp / 60000)}:${user.uid}`, 20, stamp + 120_000);
         const mode = await modeFor(env);
-        if (path === '/v1/config' && request.method === 'GET') return respond(providerInfo(env, mode));
+        if (path === '/v1/config' && request.method === 'GET') return respond({ ...providerInfo(env, mode), capabilities: { textAnalysis: true, rewrite: true } });
         if (path === '/v1/admin/settings') {
           assertAdmin(user, env);
           if (request.method === 'GET') return respond({ ...providerInfo(env, mode), available: { free: Boolean(env.GEMINI_API_KEY), paid: Boolean(env.OPENROUTER_API_KEY) }, models: { free: providerInfo(env,'free').model, paid: providerInfo(env,'paid').model } });
@@ -106,6 +106,30 @@ export function createApp({ verifyUser = verifyFirebaseUser, ai = callAI, now = 
           assertAdmin(user,env);
           await runMeteredAI(env,user,'text',mode,stamp,()=>ai(env,mode,'moderate',{content:'의견이 달라도 서로 존중하며 이유를 나누고 싶어요.',context:'AI 연결 점검'}));
           return respond({ok:true,...providerInfo(env,mode)});
+        }
+        if (path === '/v1/analyze-text' && request.method === 'POST') {
+          const body = await readJSON(request, 50_000);
+          if (body.consent !== true) throw new ApiError(400, 'CONSENT_REQUIRED', '선택한 댓글의 AI 전송에 동의해주세요.');
+          const content = text(body.content, '가져온 댓글', 20, 8000);
+          const extraContext = body.context === undefined ? '' : text(body.context, '추가 문맥', 0, 1000);
+          const analysis = await runMeteredAI(env, user, 'text', mode, stamp, async () => {
+            const result = await ai(env, mode, 'analyzeText', { content, context: extraContext });
+            if (!result.readable) throw new ApiError(422, 'CONTEXT_REQUIRED', result.limitations || '주제와 서로 다른 입장을 알 수 있도록 댓글이나 문맥을 더 추가해주세요.');
+            return result;
+          });
+          const id = crypto.randomUUID();
+          // Selected text, source URLs and analysis responses stay out of D1, just like image originals.
+          await env.DB.prepare('INSERT INTO analyses(id,user_id,created_at,expires_at) VALUES(?,?,?,?)').bind(id, user.uid, stamp, stamp + 86_400_000).run();
+          context?.waitUntil?.(env.DB.batch([env.DB.prepare('DELETE FROM quotas WHERE expires_at<?').bind(stamp), env.DB.prepare('DELETE FROM analyses WHERE expires_at<? AND id NOT IN (SELECT analysis_id FROM debates)').bind(stamp)]));
+          return respond({ analysisId: id, ...analysis, ...providerInfo(env, mode) });
+        }
+        if (path === '/v1/rewrite' && request.method === 'POST') {
+          const body = await readJSON(request);
+          if (body.consent !== true) throw new ApiError(400, 'CONSENT_REQUIRED', '작성한 댓글의 AI 전송에 동의해주세요.');
+          const content = text(body.content, '작성한 댓글', 1, 2000);
+          const extraContext = body.context === undefined ? '' : text(body.context, '추가 문맥', 0, 1000);
+          const feedback = await runMeteredAI(env, user, 'text', mode, stamp, () => ai(env, mode, 'rewrite', { content, context: extraContext }));
+          return respond({ feedback, ...providerInfo(env, mode) });
         }
         if (path === '/v1/analyze' && request.method === 'POST') {
           const body = await readJSON(request, 2_300_000);
@@ -127,7 +151,7 @@ export function createApp({ verifyUser = verifyFirebaseUser, ai = callAI, now = 
           const previous = await env.DB.prepare('SELECT user_id FROM debates WHERE id=?').bind(id).first();
           if (previous) { if (previous.user_id !== user.uid) throw new ApiError(409, 'CONFLICT', '요청을 다시 시도해주세요.'); return respond({ debate: await getDebate(env, id, user) }); }
           const analysis = await env.DB.prepare('SELECT id FROM analyses WHERE id=? AND user_id=? AND expires_at>?').bind(analysisId, user.uid, stamp).first();
-          if (!analysis) throw new ApiError(400, 'ANALYSIS_EXPIRED', '사진 분석을 다시 진행해주세요.');
+          if (!analysis) throw new ApiError(400, 'ANALYSIS_EXPIRED', '토론 자료를 다시 분석해주세요.');
           await runMeteredAI(env,user,'text',mode,stamp,()=>moderate(env, mode, [draft.title, draft.summary, ...draft.issues, draft.agreeLabel, draft.disagreeLabel].join('\n'), '새 토론 글', ai));
           try { await env.DB.prepare('INSERT INTO debates(id,analysis_id,user_id,title,summary,issues,agree_label,disagree_label,created_at) VALUES(?,?,?,?,?,?,?,?,?)').bind(id, analysisId, user.uid, draft.title, draft.summary, JSON.stringify(draft.issues), draft.agreeLabel, draft.disagreeLabel, stamp).run(); }
           catch (error) { if (String(error.message).includes('UNIQUE')) throw new ApiError(409, 'ALREADY_PUBLISHED', '이미 게시한 분석 결과예요.'); throw error; }

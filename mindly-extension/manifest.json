@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "마인들리 · 댓글에서 토론까지",
+  "version": "0.1.0",
+  "description": "선택한 댓글의 쟁점을 살펴보고, 말투를 다듬고, 마인들리 토론으로 이어가세요.",
+  "minimum_chrome_version": "116",
+  "permissions": ["activeTab", "contextMenus", "scripting", "storage", "sidePanel"],
+  "host_permissions": [
+    "https://26st072-lang.github.io/*",
+    "http://127.0.0.1:4173/*",
+    "http://localhost:4173/*"
+  ],
+  "optional_host_permissions": ["https://www.youtube.com/*"],
+  "background": {"service_worker": "background.js", "type": "module"},
+  "icons": {"16": "mascot.png", "48": "mascot.png", "128": "mascot.png"},
+  "action": {"default_title": "마인들리 열기", "default_icon": "mascot.png"},
+  "side_panel": {"default_path": "sidepanel.html"},
+  "content_scripts": [{
+    "matches": ["https://26st072-lang.github.io/mindly/*", "http://127.0.0.1:4173/*", "http://localhost:4173/*"],
+    "js": ["mindly-content.js"],
+    "run_at": "document_idle"
+  }],
+  "content_security_policy": {"extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'"}
+}

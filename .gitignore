@@ -4,6 +4,7 @@ playwright-report/
 firebase-debug*.log
 .qa/
 dist/
+/mindly-extension-*.zip
 .env
 .env.*
 !.env.example
