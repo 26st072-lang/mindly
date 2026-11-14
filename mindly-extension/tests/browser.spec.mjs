@@ -6,6 +6,7 @@ import {mockApp} from '../../tests/fixture.mjs';
 const root=fileURLToPath(new URL('../../',import.meta.url)),extension=path.join(root,'mindly-extension');
 const text='휴대전화는 긴급 연락을 위해 사용할 수 있어야 합니다. 수업에 집중하려면 사용을 제한해야 한다는 반대 의견도 있습니다.';
 const analysis={analysisId:'aaaabbbb-2222-4222-8222-222222222222',readable:true,ocrText:text,title:'학교에서 휴대전화 사용을 허용해야 할까요?',summary:'긴급 연락을 위해 사용을 허용하자는 입장과 학습 집중을 위해 제한하자는 입장이 있어요.',issues:['긴급 연락과 학습 집중을 어떻게 조화시킬까요?','어떤 시간과 장소에서 사용할 수 있을까요?'],agreeLabel:'사용을 허용해야 해요',disagreeLabel:'사용을 제한해야 해요',agreeReasons:['긴급한 연락을 할 수 있어야 해요.'],disagreeReasons:['학습에 집중해야 해요.'],questions:['서로의 필요를 존중하는 기준은 무엇일까요?'],limitations:'선택한 댓글만 분석했어요. 영상 전체를 확인하지 않았어요.'};
+analysis.preview={title:'학교 휴대전화 사용',agreeLabel:'긴급 연락을 위해 사용 허용',disagreeLabel:'수업 집중을 위해 사용 제한',issues:['자율성과 학습 집중','긴급 연락의 필요성']};
 const suggestion='그 의견에는 동의하기 어렵습니다. 근거를 설명해 주시면 좋겠습니다.';
 async function launch({youtube=false}={}){
   mkdirSync(path.join(root,'.qa'),{recursive:true});
@@ -48,9 +49,16 @@ test('the unpacked release extension captures a selection, analyzes through the 
     await source.bringToFront();await panel.evaluate(()=>document.getElementById('capture').click());
     await expect(panel.locator('[data-clip]')).toHaveValue(text);expect(calls.some(call=>call.method==='POST')).toBe(false);
     await panel.locator('#analysis-consent').check();await panel.locator('#analyze').click();
-    await expect(panel.locator('#analysis-result')).toContainText(analysis.title);await expect(panel.locator('#analysis-result')).toContainText(analysis.agreeReasons[0]);
+    await expect(panel.locator('#analysis-result h3')).toHaveText(analysis.preview.title);
+    await expect(panel.locator('.compact-stances dd')).toHaveText([analysis.preview.agreeLabel,analysis.preview.disagreeLabel]);
+    await expect(panel.locator('.compact-issues li')).toHaveText(analysis.preview.issues);
+    await expect(panel.locator('#analysis-result')).not.toContainText(analysis.summary);
+    await expect(panel.locator('#analysis-result')).not.toContainText(analysis.agreeReasons[0]);
+    await expect(panel.locator('#analysis-result')).not.toContainText(analysis.questions[0]);
     expect(calls.filter(call=>call.path==='/v1/analyze-text')).toHaveLength(1);
     await panel.locator('#import').click();await expect(mindly.locator('#extension-title')).toHaveValue(analysis.title);
+    await expect(mindly.locator('#extension-summary')).toHaveValue(analysis.summary);
+    await expect(mindly.locator('#extension-issue-0')).toHaveValue(analysis.issues[0]);
     expect(calls.filter(call=>call.path==='/v1/debates'&&call.method==='POST')).toHaveLength(0);
     await panel.screenshot({path:path.join(root,'.qa','extension-topic.png'),fullPage:true});
   }finally{await context.close();}

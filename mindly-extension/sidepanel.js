@@ -9,6 +9,19 @@ async function send(message){
 function notice(message,error=false){$('notice').hidden=!message;$('notice').textContent=message;$('notice').dataset.error=String(error);$('notice').setAttribute('role',error?'alert':'status');}
 function setBusy(value){busy=value;document.querySelectorAll('button:not([role=tab])').forEach(button=>button.disabled=value);document.querySelectorAll('textarea').forEach(field=>field.readOnly=value);$('analyze').classList.toggle('working',value&&tab==='topic');$('rewrite').classList.toggle('working',value&&tab==='tone');}
 function selectTab(value){tab=value;for(const name of ['topic','tone']){const active=name===value;$(name+'-tab').setAttribute('aria-selected',String(active));$(name+'-tab').tabIndex=active?0:-1;$(name+'-panel').hidden=!active;}}
+function renderAnalysis(result){
+  // Keep the full analysis in storage for the website; show only its semantic preview here.
+  const preview=result.preview||result;
+  return `<article class="result result-compact" aria-label="간단한 토론 분석">
+    <span class="eyebrow">주제</span><h3>${escape(preview.title)}</h3>
+    <dl class="compact-stances">
+      <div class="stance"><dt>찬성</dt><dd>${escape(preview.agreeLabel)}</dd></div>
+      <div class="stance opposite"><dt>반대</dt><dd>${escape(preview.disagreeLabel)}</dd></div>
+    </dl>
+    <h4>핵심 쟁점</h4><ul class="compact-issues">${(preview.issues||[]).slice(0,2).map(issue=>`<li>${escape(issue)}</li>`).join('')}</ul>
+    <p class="scope">선택한 댓글 기준${result.preview?'':' · 다시 분석하면 짧은 요약이 표시돼요.'}</p>
+  </article>`;
+}
 function render(){
   if(!model)return;
   const state=model.workspace,focused=document.activeElement,focusId=focused?.id,start=focused?.selectionStart,end=focused?.selectionEnd;
@@ -19,8 +32,7 @@ function render(){
   $('environment').value=model.settings.environment;
   $('youtube-toggle').textContent=model.youtubeEnabled?'유튜브 교정 버튼 끄기':'유튜브 교정 버튼 켜기';
   const result=state.analysis;
-  const list=items=>`<ul>${(items||[]).map(item=>`<li>${escape(item)}</li>`).join('')}</ul>`;
-  $('analysis-result').innerHTML=result&&!clipEdits.size&&contextEdit===null?`<article class="result"><span class="eyebrow">생각의 갈림길</span><h3>${escape(result.title)}</h3><p>${escape(result.summary)}</p><h4>핵심 쟁점</h4>${list(result.issues)}<div class="stance"><h4>찬성 · ${escape(result.agreeLabel)}</h4>${result.agreeReasons?.length?list(result.agreeReasons):'<p>선택한 자료에서 구체적인 근거가 확인되지 않았어요.</p>'}</div><div class="stance opposite"><h4>반대 · ${escape(result.disagreeLabel)}</h4>${result.disagreeReasons?.length?list(result.disagreeReasons):'<p>선택한 자료에서 구체적인 근거가 확인되지 않았어요.</p>'}</div><h4>함께 나눠볼 질문</h4>${list(result.questions)}<p class="scope">${escape(result.limitations)}</p></article>`:'';
+  $('analysis-result').innerHTML=result&&!clipEdits.size&&contextEdit===null?renderAnalysis(result):'';
   const rewrite=state.rewrite,feedback=rewrite?.feedback;
   $('rewrite-result').innerHTML=feedback&&(originalEdit===null||originalEdit===rewrite.original)?`<article class="result"><span class="eyebrow">표현을 돌아보는 시간</span>${feedback.allowed?'<h3>이 표현으로 마음을 전해도 좋겠어요.</h3><p>AI가 뚜렷한 공격 표현을 찾지 못했어요. 문맥은 한 번 더 확인해주세요.</p>':`<h3>이렇게 전해보면 어떨까요?</h3><p>${escape(feedback.reason)}</p><div class="suggestion">${escape(feedback.suggestion)}</div>${rewrite.target?'<button id="apply" class="primary full" type="button">수정문을 유튜브 입력창에 적용</button>':'<p class="quiet">제안을 복사해 원래 입력창에 직접 반영할 수 있어요.</p>'}`}</article>`:'';
   $('analysis-result').hidden=false;$('rewrite-result').hidden=false;

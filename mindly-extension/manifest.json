@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "마인들리 · 댓글에서 토론까지",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "선택한 댓글의 쟁점을 살펴보고, 말투를 다듬고, 마인들리 토론으로 이어가세요.",
   "minimum_chrome_version": "116",
   "permissions": ["activeTab", "contextMenus", "scripting", "storage", "sidePanel"],

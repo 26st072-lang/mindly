@@ -22,6 +22,7 @@ test('text analysis produces a same-account publishable record without storing s
   const h=harness(),body={content,consent:true,sourceUrl:'https://example.test/private?token=secret'};
   const analysis=await h.request('/v1/analyze-text',{method:'POST',body});assert.equal(analysis.status,200);
   assert.deepEqual(analysis.data.agreeReasons,sampleTextAnalysis.agreeReasons);
+  assert.deepEqual(analysis.data.preview,sampleTextAnalysis.preview);
   assert.equal(h.calls[0][2],'analyzeText');assert.deepEqual(h.calls[0][3],{content,context:''});
   const stored=h.DB.sqlite.prepare('SELECT * FROM analyses').get();
   assert.deepEqual(Object.keys(stored).sort(),['id','user_id','created_at','expires_at'].sort());
@@ -66,8 +67,9 @@ test('both AI providers use a text-only schema; malformed extra fields are rejec
     const result=await callAI(env,mode,'analyzeText',{content,context:'수업',images:[{data:'must-not-send'}]},fetcher);
     assert.equal(result.title,sampleTextAnalysis.title);assert.ok(!JSON.stringify(request).includes('must-not-send'));
     const schema=mode==='free'?request.generationConfig.responseFormat.text.schema:request.response_format.json_schema.schema;
-    assert.ok(schema.required.includes('limitations'));assert.ok(schema.required.includes('agreeReasons'));
+    assert.ok(schema.required.includes('limitations'));assert.ok(schema.required.includes('agreeReasons'));assert.ok(schema.required.includes('preview'));
   }
   await assert.rejects(()=>callAI(env,'free','analyzeText',{content},async()=>Response.json({candidates:[{content:{parts:[{text:JSON.stringify({...sampleTextAnalysis,agreeReasons:['가'.repeat(251)]})}]}}]})),error=>error.code==='AI_RESPONSE_INVALID');
   await assert.rejects(()=>callAI(env,'free','analyzeText',{content},async()=>Response.json({candidates:[{content:{parts:[{text:JSON.stringify({...sampleTextAnalysis,analysisId:'forged-id'})}]}}]})),error=>error.code==='AI_RESPONSE_INVALID');
+  await assert.rejects(()=>callAI(env,'free','analyzeText',{content},async()=>Response.json({candidates:[{content:{parts:[{text:JSON.stringify({...sampleTextAnalysis,preview:{...sampleTextAnalysis.preview,issues:['가'.repeat(41)]}}) }]}}]})),error=>error.code==='AI_RESPONSE_INVALID');
 });

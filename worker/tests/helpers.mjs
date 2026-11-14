@@ -4,7 +4,7 @@ import { createApp } from '../src/index.js';
 import { ApiError } from '../src/security.js';
 export const ORIGIN='https://26st072-lang.github.io';
 export const sampleAnalysis={readable:true,ocrText:'개인정보를 가린 두 가지 의견입니다.',title:'학교에서 휴대전화 사용을 허용해야 할까요?',summary:'수업 중 집중을 위해 사용을 제한하자는 입장과 필요할 때 자율적으로 사용하자는 입장이 있어요.',issues:['학습 집중과 자율성 중 무엇을 우선해야 할까요?','긴급한 연락이 필요할 때는 어떻게 해야 할까요?'],agreeLabel:'자율적인 사용을 허용해야 해요',disagreeLabel:'학습을 위해 제한해야 해요'};
-export const sampleTextAnalysis={...sampleAnalysis,agreeReasons:['긴급한 연락을 할 수 있어야 해요.'],disagreeReasons:['수업 중에는 학습에 집중해야 해요.'],questions:['자율성과 학습 집중을 함께 지킬 방법은 무엇일까요?'],limitations:'선택한 댓글과 추가 문맥만 분석했으며 영상 전체나 전체 여론을 확인하지 않았어요.'};
+export const sampleTextAnalysis={...sampleAnalysis,agreeReasons:['긴급한 연락을 할 수 있어야 해요.'],disagreeReasons:['수업 중에는 학습에 집중해야 해요.'],questions:['자율성과 학습 집중을 함께 지킬 방법은 무엇일까요?'],limitations:'선택한 댓글과 추가 문맥만 분석했으며 영상 전체나 전체 여론을 확인하지 않았어요.',preview:{title:'학교 휴대전화 사용',agreeLabel:'긴급 연락을 위해 사용 허용',disagreeLabel:'수업 집중을 위해 사용 제한',issues:['자율성과 학습 집중','긴급 연락의 필요성']}};
 export const image={mimeType:'image/png',data:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII='};
 export class D1 {
   constructor(){this.sqlite=new DatabaseSync(':memory:');for(const file of readdirSync(new URL('../migrations/',import.meta.url)).filter(file=>file.endsWith('.sql')).sort())this.sqlite.exec(readFileSync(new URL('../migrations/'+file,import.meta.url),'utf8'));}
