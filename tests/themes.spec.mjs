@@ -21,15 +21,18 @@ test('theme choice survives routes and reloads without replacing a typed account
   await page.reload();await expect(page.locator('html')).toHaveAttribute('data-theme','day');
 });
 
-test('day/night switch reuses the scene, keeps the heart, and works when storage is unavailable',async({page})=>{
+test('day/night switch keeps the original window artwork and works when storage is unavailable',async({page})=>{
   await page.addInitScript(()=>{Storage.prototype.setItem=function(){throw new DOMException('blocked','SecurityError');};});
   await mockApp(page);await page.goto('/');
-  await expect(page.locator('.entry-webgl[data-scene="day"] canvas')).toBeVisible({timeout:20000});
-  await page.evaluate(()=>window.__themeCanvas=document.querySelector('canvas'));
+  await expect(page.locator('.entry-art .mascot-img')).toBeVisible();
+  const dayGlass=await page.locator('.home-window-glass').evaluate(el=>getComputedStyle(el).backgroundImage);
+  await page.evaluate(()=>window.__themeMascot=document.querySelector('.entry-art .mascot-img'));
   for(let i=0;i<5;i++)await page.locator('.theme-control').click();
-  await expect(page.locator('.entry-webgl')).toHaveAttribute('data-scene','night');
-  expect(await page.evaluate(()=>document.querySelector('canvas')===window.__themeCanvas)).toBe(true);
-  await expect(page.locator('.chat-heart svg')).toHaveCount(1);
+  await expect(page.locator('html')).toHaveAttribute('data-theme','night');
+  expect(await page.locator('.home-window-glass').evaluate(el=>getComputedStyle(el).backgroundImage)).not.toBe(dayGlass);
+  expect(await page.evaluate(()=>document.querySelector('.entry-art .mascot-img')===window.__themeMascot)).toBe(true);
+  await expect(page.locator('.home-window-star')).toHaveCount(2);
+  await expect(page.locator('canvas')).toHaveCount(0);
   await page.screenshot({path:'.qa/night-entry-desktop.png'});
   await page.locator('.theme-control').click();
   await page.screenshot({path:'.qa/day-entry-desktop.png'});
@@ -86,13 +89,13 @@ test('night entry fits short phones, tablets and desktops and its header control
   await page.screenshot({path:'.qa/night-lounge-mobile.png',fullPage:true});
 });
 
-test('night fallback keeps the original character, heart and login usable without WebGL',async({page})=>{
+test('night window keeps the original character and login usable without WebGL',async({page})=>{
   await page.addInitScript(()=>{
     localStorage.setItem('mindly-color-theme','night');
     const getContext=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type,...args){return type==='webgl'||type==='webgl2'?null:getContext.call(this,type,...args);};
   });
   await mockApp(page);await page.goto('/');await expect(page.locator('.landing')).toBeVisible();
-  await expect(page.locator('.entry-mindy img')).toBeVisible();await expect(page.locator('.chat-heart')).toBeVisible();await expect(page.locator('.entry-lamp')).toBeVisible();
+  await expect(page.locator('.entry-art .mascot-img')).toBeVisible();await expect(page.locator('.home-window-frame')).toBeVisible();await expect(page.locator('.home-window-star')).toHaveCount(2);
   await page.getByRole('button',{name:'마인들리 시작하기'}).click();await expect(page.locator('#auth-username')).toBeEditable();
-  await page.locator('.theme-control').click();await expect(page.locator('html')).toHaveAttribute('data-theme','day');await expect(page.locator('.entry-mindy img')).toBeVisible();
+  await page.locator('.theme-control').click();await expect(page.locator('html')).toHaveAttribute('data-theme','day');await expect(page.locator('.entry-art .mascot-img')).toBeVisible();
 });

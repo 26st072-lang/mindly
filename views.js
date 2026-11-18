@@ -30,7 +30,6 @@ function render(options={}){
     // update keeps the actual focused input node, selection and IME buffer.
     enhanceAccessibility(target);
     morphdom(root,target,{childrenOnly:true,getNodeKey:node=>node.id||node.dataset?.key,onBeforeElUpdated:(from,to)=>{
-      if(from.classList.contains('entry-webgl'))return false;
       if(from===document.activeElement&&from.matches('input,textarea,select'))return false;
       return !from.isEqualNode(to);
     }});
@@ -51,18 +50,7 @@ function render(options={}){
 function renderLoading(){return `<div class="boot-screen">${brandHTML()}${mascotScene('small')}<p class="loading-copy" role="status"><span class="spinner" aria-hidden="true"></span>마음이 쉬어갈 공간을 준비하고 있어요.</p></div>`;}
 function renderConnectionError(){return `<div class="boot-screen">${brandHTML()}${mascotScene('small')}<h1>연결이 잠시 쉬어가고 있어요</h1><p>인터넷 연결을 확인해주세요. 저장된 이야기는 삭제되지 않았어요.</p><button class="btn-primary" onclick="${!window.firebase?'location.reload()':'initApp()'}">다시 연결하기</button></div>`;}
 function entryScene(){
-  return `<div class="entry-art">
-    <div class="entry-diorama" aria-hidden="true">
-      <div class="entry-depth">
-        <div class="entry-aura"></div><div class="entry-room"></div>
-        <div class="entry-platform"></div><div class="entry-lamp"></div><div class="entry-contact-shadow"></div>
-        <div class="entry-mindy">${logoSVG()}</div>
-        <span class="entry-chat chat-listening"><i></i><i></i><i></i></span>
-        <span class="entry-chat chat-heart">${ICONS.heart}</span>
-        <span class="entry-leaf leaf-one"></span><span class="entry-leaf leaf-two"></span>
-      </div><div class="entry-webgl" data-key="entry-webgl"></div>
-    </div>
-  </div>`;
+  return `<div class="entry-art entry-window-art"><div class="entry-window-stage">${mascotScene('home')}</div></div>`;
 }
 function renderLanding(){
   return `<div class="landing entry-screen">

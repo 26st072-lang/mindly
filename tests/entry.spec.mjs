@@ -24,42 +24,31 @@ test('entry and login fit phone, tablet and desktop heights with two complete co
   }
 });
 
-test('3D plays automatically, survives live renders, and releases the canvas on leaving entry',async({page})=>{
+test('entry, login and home keep the same original window artwork through live updates',async({page})=>{
   await page.emulateMedia({reducedMotion:'no-preference'});await mockApp(page);await page.goto('/');
-  await expect(page.locator('.entry-webgl[data-ready="true"] canvas')).toBeVisible({timeout:20000});
-  const first=await page.locator('canvas').screenshot();await page.waitForTimeout(700);
-  const second=await page.locator('canvas').screenshot();expect(first.equals(second)).toBe(false);
+  const artwork=page.locator('.entry-art .home-mascot-art');
+  await expect(artwork.locator('.mascot-img')).toBeVisible();
+  await expect(artwork.locator('.mascot-img')).toHaveAttribute('src','assets/mascot.png');
+  const original=await artwork.innerHTML();
+  await expect(page.locator('.entry-webgl,canvas,.home-window-aura,.home-glass-light,.home-sky-haze')).toHaveCount(0);
   await expect(page.getByRole('button',{name:/재생|정지/})).toHaveCount(0);
   await expect(page.getByText('있는 그대로, 괜찮아.')).toHaveCount(0);
-  expect(await page.evaluate(()=>{window.__entryCanvas=document.querySelector('canvas');window.__test.emit('posts');return document.querySelector('canvas')===window.__entryCanvas;})).toBe(true);
+  await page.evaluate(()=>window.__test.emit('posts'));
+  expect(await artwork.innerHTML()).toBe(original);
   await page.getByRole('button',{name:'마인들리 시작하기'}).click();
   await expect(page.locator('.auth-wrap')).toBeVisible();
-  expect(await page.evaluate(()=>document.querySelector('canvas')===window.__entryCanvas)).toBe(true);
+  expect(await artwork.innerHTML()).toBe(original);
   await page.evaluate(()=>enterGuest());await expect(page.locator('.post-card').first()).toBeVisible();await expect(page.locator('canvas')).toHaveCount(0);
-  await page.evaluate(()=>goto('landing'));await expect(page.locator('.entry-webgl[data-ready="true"] canvas')).toBeVisible();
-});
-
-test('reduced motion keeps a still 3D pose and browser preference changes take effect',async({page})=>{
-  await page.addInitScript(()=>{
-    window.__sceneDraws=0;
-    const draw=WebGL2RenderingContext.prototype.drawElements;
-    WebGL2RenderingContext.prototype.drawElements=function(...args){window.__sceneDraws++;return draw.apply(this,args);};
-  });
-  await mockApp(page);await page.goto('/');await expect(page.locator('.entry-webgl[data-ready="true"] canvas')).toBeVisible({timeout:20000});
-  await page.evaluate(()=>document.fonts.ready);
-  // Count real GPU draws: screenshots can differ slightly due to subpixel
-  // compositing even when the canvas has not rendered another frame.
-  await page.waitForTimeout(150);const draws=await page.evaluate(()=>window.__sceneDraws);
-  expect(draws).toBeGreaterThan(0);await page.waitForTimeout(350);
-  expect(await page.evaluate(()=>window.__sceneDraws)).toBe(draws);
-  await page.emulateMedia({reducedMotion:'no-preference'});
-  await expect.poll(()=>page.evaluate(()=>window.__sceneDraws)).toBeGreaterThan(draws);
+  expect(await page.locator('.home-welcome .home-mascot-art').innerHTML()).toBe(original);
+  await page.evaluate(()=>goto('landing'));await expect(artwork).toBeVisible();
+  expect(await artwork.innerHTML()).toBe(original);
+  await expect(page.locator('script[src="vendor/entry-scene.min.js"]')).toHaveCount(0);
 });
 
 test('the original character and login remain available without WebGL',async({page})=>{
   await page.addInitScript(()=>{const original=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type,...args){return type==='webgl'||type==='webgl2'?null:original.call(this,type,...args);};});
   await mockApp(page);await page.goto('/');await expect(page.locator('.landing')).toBeVisible();
-  await expect(page.locator('.entry-mindy img')).toBeVisible();
+  await expect(page.locator('.entry-art .mascot-img')).toBeVisible();
   await page.getByRole('button',{name:'마인들리 시작하기'}).click();
   await page.getByRole('textbox',{name:'아이디',exact:true}).fill('reader@example.test');
   await page.locator('#auth-password').fill('secret123');await page.locator('[data-action="login"]').click();
