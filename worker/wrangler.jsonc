@@ -10,7 +10,11 @@
     "FIREBASE_PROJECT_ID": "mindly1-52859",
     "ALLOWED_ORIGINS": "https://26st072-lang.github.io,http://127.0.0.1:4173,http://localhost:4173",
     "GEMINI_MODEL": "gemini-3.5-flash-lite",
-    "AI_DAILY_LIMIT": "200"
+    "AI_DAILY_LIMIT": "200",
+    "EVIDENCE_GEMINI_MODEL": "gemini-2.5-flash",
+    "EVIDENCE_GOOGLE_AVAILABLE": "false",
+    "EVIDENCE_USER_DAILY_LIMIT": "3",
+    "EVIDENCE_SITE_DAILY_LIMIT": "5"
   },
   "d1_databases": [
     {

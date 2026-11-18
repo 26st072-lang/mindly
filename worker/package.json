@@ -10,6 +10,8 @@
     "db:remote": "wrangler d1 migrations apply mindly-debate --remote"
   },
   "dependencies": {
+    "@google/genai": "3.5.0",
+    "ipaddr.js": "2.5.0",
     "jose": "6.2.14"
   },
   "devDependencies": {

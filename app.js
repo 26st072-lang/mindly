@@ -274,7 +274,8 @@ async function submitCommentImpl(postId){
   const text=(ui.commentDrafts[postId]||document.getElementById('comment-input')?.value||'').trim();
   if(!text||text.length>1000){toast('댓글을 1~1000자로 입력해주세요.');return;}
   const actor=session.userId,generation=authGeneration,parentId=ui.concernReply?.postId===postId?ui.concernReply.commentId:null;
-  const comment={id:uid(),authorId:actor,authorNickname:session.nickname,authorAvatar:session.avatar,content:text,createdAt:Date.now(),parentId};
+  const evidenceDescriptor={kind:'concern',id:postId,parentId},evidence=evidenceBibliography(evidenceDescriptor),attachedIds=evidenceIds(evidenceDescriptor);
+  const comment={id:uid(),authorId:actor,authorNickname:session.nickname,authorAvatar:session.avatar,content:text,createdAt:Date.now(),parentId,evidence};
   try{
     const ref=db.collection('posts').doc(postId);
     await db.runTransaction(async transaction=>{
@@ -287,6 +288,7 @@ async function submitCommentImpl(postId){
     });
     if(generation!==authGeneration)return;
     const post=DB.posts.find(p=>p.id===postId);if(post&&!post.comments.some(c=>c.id===comment.id))post.comments.push(comment);
+    clearEvidenceIf(evidenceDescriptor,attachedIds);
     if((ui.commentDrafts[postId]||'').trim()===text)ui.commentDrafts[postId]='';
     const input=document.getElementById('comment-input');if(input?.value.trim()===text)input.value='';
     if(ui.concernReply?.postId===postId&&ui.concernReply.commentId===parentId)ui.concernReply=null;
@@ -305,7 +307,7 @@ async function deleteCommentImpl(postId,commentId){
       const comments=snapshot.data().comments||[],current=comments.find(c=>c.id===commentId);
       if(!current)throw Error('이미 삭제된 댓글이에요.');
       if(generation!==authGeneration||actor!==session.userId||!isAdmin&&current.authorId!==actor)throw Error('이 댓글을 삭제할 권한이 없어요.');
-      const next={...current,content:'',deleted:true,deletedAt:Date.now()};
+      const next={...current,content:'',...(current.evidence?.length?{evidence:[]}:{}),deleted:true,deletedAt:Date.now()};
       transaction.update(ref,{comments:comments.map(c=>c.id===commentId?next:c)});return next;
     });
     if(generation!==authGeneration)return;
@@ -320,7 +322,8 @@ function startEditComment(postId,commentId){
   const comment=DB.posts.find(p=>p.id===postId)?.comments.find(c=>c.id===commentId);
   if(!comment||!canEditComment(comment))return;
   ui.editingCommentId=commentId;ui.editingCommentPostId=postId;
-  ui.commentEditDraft=comment.content;ui.commentEditOriginal=comment.content;render();
+  ui.commentEditDraft=comment.content;ui.commentEditOriginal=comment.content;ui.commentEditEvidenceOriginal=JSON.stringify(comment.evidence||[]);
+  seedEvidence({kind:'concern-edit',id:postId,parentId:commentId},comment.evidence);render();
   const input=document.getElementById('edit-comment-'+commentId);
   input?.focus({preventScroll:true});input?.setSelectionRange(input.value.length,input.value.length);
 }
@@ -333,7 +336,8 @@ async function saveEditComment(postId, commentId){
   if(!comment||!canEditComment(comment)||ui.editingCommentId!==commentId||ui.editingCommentPostId!==postId)return;
   const text=ui.commentEditDraft.trim(),original=ui.commentEditOriginal;
   if(!text||text.length>1000){toast('댓글을 1~1000자로 입력해주세요');return;}
-  if(text===original){cancelEditComment();return;}
+  const evidenceDescriptor={kind:'concern-edit',id:postId,parentId:commentId},evidence=evidenceBibliography(evidenceDescriptor),originalEvidence=ui.commentEditEvidenceOriginal;
+  if(text===original&&JSON.stringify(evidence)===originalEvidence){cancelEditComment();return;}
   const actor=session.userId,generation=authGeneration,isAdmin=session.isAdmin;
   return runAction('edit-comment-'+commentId,async()=>{
     try{
@@ -345,8 +349,8 @@ async function saveEditComment(postId, commentId){
         const target=comments.find(c=>c.id===commentId);
         if(!target||target.deleted)throw {code:'comment/not-found'};
         if(generation!==authGeneration||actor!==session.userId||(!isAdmin&&target.authorId!==actor))throw {code:'permission-denied'};
-        if(target.content!==original)throw {code:'comment/conflict'};
-        const next={...target,content:text,editedAt:Date.now(),editedByAdmin:isAdmin&&target.authorId!==actor};
+        if(target.content!==original||JSON.stringify(target.evidence||[])!==originalEvidence)throw {code:'comment/conflict'};
+        const next={...target,content:text,...(JSON.stringify(evidence)===originalEvidence?{}:{evidence}),editedAt:Date.now(),editedByAdmin:isAdmin&&target.authorId!==actor};
         transaction.update(ref,{comments:comments.map(c=>c.id===commentId?next:c)});
         return next;
       });

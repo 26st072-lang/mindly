@@ -84,6 +84,7 @@ test('failed comment preserves draft; rapid saves create only one record',async(
 });
 test('logout clears private data and drafts; switching accounts does not duplicate subscriptions',async({page})=>{
   await mockApp(page,{user:true});await page.goto('/');
+  await page.locator('.home-welcome').waitFor();
   await page.evaluate(()=>{ui.diaryDraft.content='private draft';DB.diary=[{id:'old-diary',content:'previous private data'}];});
   await page.evaluate(()=>window.__test.signOut());
   expect(await page.evaluate(()=>({diary:DB.diary.length,draft:ui.diaryDraft.content}))).toEqual({diary:0,draft:''});

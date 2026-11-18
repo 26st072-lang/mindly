@@ -5,7 +5,15 @@ export function firestoreRuleCases(){
   const edited={...mine,content:'정중하게 수정한 댓글입니다.',editedAt:2000,editedByAdmin:false};
   const deleted={...mine,content:'',deleted:true,deletedAt:2000};
   const reply={...mine,id:'reply',content:'다른 의견에도 귀 기울이고 싶어요.',parentId:'other',createdAt:2000};
+  const source={id:'receipt',url:'https://www.who.int/news/example',title:'확인한 자료',publisher:'WHO',publishedAt:'2026',type:'report'};
   const scenarios=[
+    ['attach evidence to own comment','alice',before,{...before,comments:[{...edited,evidence:[source]},other]},'ALLOW'],
+    ['reply with evidence','alice',before,{...before,comments:[mine,other,{...reply,evidence:[source]}]},'ALLOW'],
+    ['remove evidence','alice',{...before,comments:[{...mine,evidence:[source]},other]},{...before,comments:[{...edited,evidence:[]},other]},'ALLOW'],
+    ['unsafe evidence URL','alice',before,{...before,comments:[{...edited,evidence:[{...source,url:'javascript:alert(1)'}]},other]},'DENY'],
+    ['credential URL rejected','alice',before,{...before,comments:[{...edited,evidence:[{...source,url:'https://user:pass@example.com/'}]},other]},'DENY'],
+    ['more than eight sources','alice',before,{...before,comments:[{...edited,evidence:Array(9).fill(source)},other]},'DENY'],
+    ['cannot forge verification badge','alice',before,{...before,comments:[{...edited,evidence:[{...source,verified:true}]},other]},'DENY'],
     ['own edit','alice',before,{...before,comments:[edited,other]},'ALLOW'],
     ['own deletion','alice',before,{...before,comments:[deleted,other]},'ALLOW'],
     ['own reply','alice',before,{...before,comments:[mine,other,reply]},'ALLOW'],

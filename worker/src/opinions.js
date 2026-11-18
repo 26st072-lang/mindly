@@ -1,7 +1,8 @@
 import {ApiError,assertAdmin,identifier,text} from './security.js';
+import {resolveEvidence} from './evidence.js';
 
 export function opinionDTO(row,user){
-  return {id:row.id,debateId:row.debate_id,alias:row.alias,stance:row.stance,content:row.deleted_at?'':row.content,createdAt:row.created_at,editedAt:row.edited_at||null,deleted:Boolean(row.deleted_at),deletedByAdmin:Boolean(row.deleted_at&&row.deleted_by_admin),revision:row.revision||0,parentId:row.parent_id||null,parentAlias:row.parent_alias||null,isMine:Boolean(user&&row.user_id===user.uid),title:row.title};
+  return {id:row.id,debateId:row.debate_id,alias:row.alias,stance:row.stance,content:row.deleted_at?'':row.content,evidence:row.deleted_at?[]:JSON.parse(row.evidence_json||'[]'),createdAt:row.created_at,editedAt:row.edited_at||null,deleted:Boolean(row.deleted_at),deletedByAdmin:Boolean(row.deleted_at&&row.deleted_by_admin),revision:row.revision||0,parentId:row.parent_id||null,parentAlias:row.parent_alias||null,isMine:Boolean(user&&row.user_id===user.uid),title:row.title};
 }
 function voteStatements(env,debateId,userId,stamp){
   return [
@@ -9,21 +10,22 @@ function voteStatements(env,debateId,userId,stamp){
     env.DB.prepare('INSERT INTO votes(debate_id,user_id,stance,updated_at) SELECT debate_id,user_id,stance,? FROM opinions WHERE debate_id=? AND user_id=? AND deleted_at IS NULL ORDER BY created_at DESC,id DESC LIMIT 1 ON CONFLICT(debate_id,user_id) DO UPDATE SET stance=excluded.stance,updated_at=excluded.updated_at').bind(stamp,debateId,userId),
   ];
 }
-function sameRequest(row,user,debateId,content,stance,parentId){
-  if(row.user_id!==user.uid||row.debate_id!==debateId||row.content!==content||row.stance!==stance||(row.parent_id||null)!==parentId||row.deleted_at)throw new ApiError(409,'CONFLICT','이 요청은 이미 다른 내용으로 처리됐어요. 새로고침 후 다시 시도해주세요.');
+function sameRequest(row,user,debateId,content,stance,parentId,evidenceIds=[]){
+  if(row.user_id!==user.uid||row.debate_id!==debateId||row.content!==content||row.stance!==stance||(row.parent_id||null)!==parentId||row.deleted_at||JSON.stringify(JSON.parse(row.evidence_json||'[]').map(s=>s.id))!==JSON.stringify(evidenceIds))throw new ApiError(409,'CONFLICT','이 요청은 이미 다른 내용으로 처리됐어요. 새로고침 후 다시 시도해주세요.');
   return opinionDTO(row,user);
 }
 export async function createOpinion(env,user,debateId,body,stamp,review){
   const requestId=identifier(body.requestId),content=text(body.content,'의견',5,1000),parentId=body.parentId?identifier(body.parentId):null;
   if(!['agree','disagree'].includes(body.stance))throw new ApiError(400,'STANCE_REQUIRED','찬성 또는 반대를 선택해주세요.');
   const previous=await env.DB.prepare('SELECT * FROM opinions WHERE id=?').bind(requestId).first();
-  if(previous)return {opinion:sameRequest(previous,user,debateId,content,body.stance,parentId),created:false};
+  if(previous)return {opinion:sameRequest(previous,user,debateId,content,body.stance,parentId,body.evidenceIds||[]),created:false};
+  const evidence=await resolveEvidence(env,user,body.evidenceIds||[]);
   if(parentId&&!await env.DB.prepare('SELECT id FROM opinions WHERE id=? AND debate_id=? AND deleted_at IS NULL').bind(parentId,debateId).first())throw new ApiError(404,'REPLY_TARGET_UNAVAILABLE','답글을 달 댓글이 삭제되었거나 이 토론에 없어요.');
   await review(content,body.stance);
   try{
     await env.DB.batch([
       env.DB.prepare('INSERT OR IGNORE INTO debate_participants(debate_id,user_id,number,created_at) SELECT ?,?,COALESCE(MAX(number),0)+1,? FROM debate_participants WHERE debate_id=?').bind(debateId,user.uid,stamp,debateId),
-      env.DB.prepare("INSERT INTO opinions(id,debate_id,user_id,alias,stance,content,created_at,parent_id) SELECT ?,?,?, '익명 ' || number,?,?,?,? FROM debate_participants WHERE debate_id=? AND user_id=?").bind(requestId,debateId,user.uid,body.stance,content,stamp,parentId,debateId,user.uid),
+      env.DB.prepare("INSERT INTO opinions(id,debate_id,user_id,alias,stance,content,created_at,parent_id,evidence_json) SELECT ?,?,?, '익명 ' || number,?,?,?,?,? FROM debate_participants WHERE debate_id=? AND user_id=?").bind(requestId,debateId,user.uid,body.stance,content,stamp,parentId,JSON.stringify(evidence),debateId,user.uid),
       ...voteStatements(env,debateId,user.uid,stamp),
     ]);
   }catch(error){
@@ -31,7 +33,7 @@ export async function createOpinion(env,user,debateId,body,stamp,review){
     if(!String(error.message).includes('UNIQUE'))throw error;
     const existing=await env.DB.prepare('SELECT * FROM opinions WHERE id=?').bind(requestId).first();
     if(!existing)throw error;
-    return {opinion:sameRequest(existing,user,debateId,content,body.stance,parentId),created:false};
+    return {opinion:sameRequest(existing,user,debateId,content,body.stance,parentId,body.evidenceIds||[]),created:false};
   }
   return {opinion:opinionDTO(await env.DB.prepare('SELECT * FROM opinions WHERE id=?').bind(requestId).first(),user),created:true};
 }
@@ -48,12 +50,13 @@ export async function changeOpinion(env,user,debateId,opinionId,method,body,stam
   let next;
   if(method==='PATCH'){
     const content=text(body.content,'의견',5,1000);
-    if(content===row.content)return opinionDTO(row,user);
-    await review(content,row.stance);
-    next=await env.DB.prepare('UPDATE opinions SET content=?,edited_at=?,revision=revision+1 WHERE id=? AND revision=? AND deleted_at IS NULL RETURNING *').bind(content,stamp,opinionId,row.revision).first();
+    const evidence=await resolveEvidence(env,user,body.evidenceIds,JSON.parse(row.evidence_json||'[]'));
+    if(content===row.content&&JSON.stringify(evidence)===row.evidence_json)return opinionDTO(row,user);
+    if(content!==row.content)await review(content,row.stance);
+    next=await env.DB.prepare('UPDATE opinions SET content=?,evidence_json=?,edited_at=?,revision=revision+1 WHERE id=? AND revision=? AND deleted_at IS NULL RETURNING *').bind(content,JSON.stringify(evidence),stamp,opinionId,row.revision).first();
   }else{
     const results=await env.DB.batch([
-      env.DB.prepare("UPDATE opinions SET content='',deleted_at=?,deleted_by_admin=?,revision=revision+1 WHERE id=? AND revision=? AND deleted_at IS NULL RETURNING *").bind(stamp,row.user_id!==user.uid?1:0,opinionId,row.revision),
+      env.DB.prepare("UPDATE opinions SET content='',evidence_json='[]',deleted_at=?,deleted_by_admin=?,revision=revision+1 WHERE id=? AND revision=? AND deleted_at IS NULL RETURNING *").bind(stamp,row.user_id!==user.uid?1:0,opinionId,row.revision),
       ...voteStatements(env,debateId,row.user_id,stamp),
     ]);
     next=results[0].results?.[0];

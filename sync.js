@@ -67,6 +67,7 @@ function reconnect(){
   backgroundRender();
 }
 function resetPrivateState(){
+  if(typeof resetEvidenceState==='function')resetEvidenceState();
   DB.diary=[];DB.users=[];
   if(!pendingActions.has('login'))ui.loginDraft.pw='';
   if(!pendingActions.has('signup'))ui.signupDraft.pw='';

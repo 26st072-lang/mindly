@@ -1,6 +1,7 @@
 import { ApiError, verifyFirebaseUser, assertAdmin, readJSON, text, identifier } from './security.js';
 import { callAI, moderate, providerInfo } from './ai.js';
 import {opinionDTO,createOpinion,changeOpinion} from './opinions.js';
+import {evidenceRoute} from './evidence.js';
 
 const PAGE_SIZE = 20;
 const selectors = `d.*, (SELECT COUNT(*) FROM hearts h WHERE h.debate_id=d.id) AS heart_count,
@@ -66,7 +67,7 @@ function draftFrom(body) {
   if (!Array.isArray(body.issues) || body.issues.length < 2 || body.issues.length > 5) throw new ApiError(400, 'INVALID_INPUT', '쟁점을 2~5개 입력해주세요.');
   return { title: text(body.title, '제목', 5, 100), summary: text(body.summary, '배경 설명', 20, 1500), issues: body.issues.map(v => text(v, '쟁점', 5, 200)), agreeLabel: text(body.agreeLabel, '찬성 입장', 2, 80), disagreeLabel: text(body.disagreeLabel, '반대 입장', 2, 80) };
 }
-export function createApp({ verifyUser = verifyFirebaseUser, ai = callAI, now = () => Date.now() } = {}) {
+export function createApp({ verifyUser = verifyFirebaseUser, ai = callAI, now = () => Date.now(), evidenceSearch, evidenceInspect } = {}) {
   return {
     async fetch(request, env, context) {
       const origin = request.headers.get('Origin');
@@ -90,6 +91,8 @@ export function createApp({ verifyUser = verifyFirebaseUser, ai = callAI, now = 
         const stamp = now();
         if (write) await consumeQuota(env, `minute:${Math.floor(stamp / 60000)}:${user.uid}`, 20, stamp + 120_000);
         const mode = await modeFor(env);
+        const evidenceResponse=await evidenceRoute({request,path,env,user,stamp,cors,respond,search:evidenceSearch,inspect:evidenceInspect});
+        if(evidenceResponse)return evidenceResponse;
         if (path === '/v1/config' && request.method === 'GET') return respond({ ...providerInfo(env, mode), capabilities: { textAnalysis: true, rewrite: true } });
         if (path === '/v1/admin/settings') {
           assertAdmin(user, env);
@@ -213,7 +216,7 @@ export function createApp({ verifyUser = verifyFirebaseUser, ai = callAI, now = 
         throw new ApiError(404, 'NOT_FOUND', '요청한 기능을 찾을 수 없어요.');
       } catch (error) {
         if (error instanceof ApiError) return respond({ code: error.code, message: error.message, ...error.extra }, error.status);
-        console.error('Mindly worker request failed');
+        console.error('Mindly worker request failed',JSON.stringify({name:error?.name||'Error',kind:/redirect/i.test(error?.message||'')?'redirect':/DNS|fetch/i.test(error?.message||'')?'network':'other'}));
         return respond({ code: 'SERVER_ERROR', message: '요청을 완료하지 못했어요. 작성한 내용은 유지되니 다시 시도해주세요.' }, 500);
       }
     },

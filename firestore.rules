@@ -4,11 +4,33 @@ service cloud.firestore {
     function isAdmin() {
       return request.auth != null && request.auth.token.email == 'kickin_mindly@gmail.com';
     }
+    function validEvidenceItem(item) {
+      return item is map && item.keys().hasAll(['id','url','title','publisher','publishedAt','type'])
+        && item.keys().hasOnly(['id','url','title','publisher','publishedAt','type'])
+        && item.id is string && item.id.size() <= 64
+        && item.url is string && item.url.size() <= 2000 && item.url.matches('https?://[a-zA-Z0-9.-]+(:80|:443)?([/?][^ ]*)?')
+        && item.title is string && item.title.size() > 0 && item.title.size() <= 300
+        && item.publisher is string && item.publisher.size() <= 160
+        && (item.publishedAt == null || (item.publishedAt is string && item.publishedAt.size() <= 10))
+        && item.type in ['article','paper','statistics','report','web'];
+    }
+    function validEvidence(items) {
+      return items is list && items.size() <= 8
+        && (items.size() < 1 || validEvidenceItem(items[0]))
+        && (items.size() < 2 || validEvidenceItem(items[1]))
+        && (items.size() < 3 || validEvidenceItem(items[2]))
+        && (items.size() < 4 || validEvidenceItem(items[3]))
+        && (items.size() < 5 || validEvidenceItem(items[4]))
+        && (items.size() < 6 || validEvidenceItem(items[5]))
+        && (items.size() < 7 || validEvidenceItem(items[6]))
+        && (items.size() < 8 || validEvidenceItem(items[7]));
+    }
     function validOwnComment(comment) {
       return comment is map && comment.keys().hasAll(['id','authorId','authorNickname','authorAvatar','content','createdAt'])
         && comment.id is string && comment.id.size() > 0
         && comment.authorId == request.auth.uid
-        && comment.content is string && comment.content.size() <= 1000;
+        && comment.content is string && comment.content.size() <= 1000
+        && validEvidence(comment.get('evidence',[]));
     }
     function ownCommentAddition(before,after,added,removed) {
       return removed.size() == 0 && added.size() == 1 && after.size() == before.size() + 1
@@ -20,7 +42,7 @@ service cloud.firestore {
         && before.removeAll(removed) == after.removeAll(added)
         && removed[0].authorId == request.auth.uid && removed[0].get('deleted',false) == false
         && validOwnComment(added[0])
-        && added[0].diff(removed[0]).affectedKeys().hasOnly(['content','editedAt','editedByAdmin','deleted','deletedAt'])
+        && added[0].diff(removed[0]).affectedKeys().hasOnly(['content','evidence','editedAt','editedByAdmin','deleted','deletedAt'])
         && added[0].get('editedByAdmin',false) == false
         && ((added[0].get('deleted',false) == false && added[0].content.size() > 0)
           || (added[0].get('deleted',false) == true && added[0].content == '' && added[0].keys().hasAll(['deletedAt'])));

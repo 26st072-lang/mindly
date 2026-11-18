@@ -4,6 +4,8 @@
 
 토론 서버 주소: `https://mindly-debate-api.mindly-debate-worker.workers.dev`
 
+댓글·답글의 근거 첨부, Google Search 무료 지원 조건과 학술검색 대안은 [근거 첨부 운영 안내](EVIDENCE.md)를 참고합니다.
+
 ## 1. Cloudflare 이메일 인증
 
 가입한 이메일의 받은편지함에서 Cloudflare 메일을 열고 **Verify email address**를 누릅니다. 메일이 없으면 스팸함을 확인합니다. 다시 받으려면 [Cloudflare 대시보드](https://dash.cloudflare.com/) → 오른쪽 위 프로필 → **My Profile** → **Email Address** → **Send verification email**을 선택합니다. 이메일 옆에 `(verified)`가 나타나면 인증된 상태입니다. 인증 전에는 Worker 배포가 거부됩니다. [공식 안내](https://developers.cloudflare.com/fundamentals/user-profiles/verify-email-address/)

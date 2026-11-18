@@ -152,13 +152,15 @@ async function submitDebateOpinion(id,parentId=null){
   const draft=opinionDraft(id,parentId),action=parentId?'debate-reply-'+parentId:'debate-opinion',target=parentId?'reply-opinion-'+parentId:'debate-opinion';
   if(!draft.stance){toast('찬성 또는 반대를 선택해주세요.');return;}
   if(draft.content.trim().length<5||draft.content.trim().length>1000){toast('의견을 5~1000자로 적어주세요.');return;}
+  const evidenceDescriptor={kind:'debate',id,parentId},evidenceIdsToSend=evidenceIds(evidenceDescriptor);
   const content=draft.content.trim(),stance=draft.stance,requestId=draft.requestId||(draft.requestId=crypto.randomUUID());
   return debateAction(action,async epoch=>{
-    const result=await debateRequest('/v1/debates/'+id+'/opinions',{method:'POST',body:{content,stance,requestId,parentId}});
+    const result=await debateRequest('/v1/debates/'+id+'/opinions',{method:'POST',body:{content,stance,requestId,parentId,evidenceIds:evidenceIdsToSend}});
     if(epoch!==debateState.epoch)return;
     updateDebate(result.debate);
     const state=debateState.details.get(id);if(state&&!state.opinions.some(item=>item.id===result.opinion.id))state.opinions.push(result.opinion);
     if(draft.content.trim()===content&&draft.stance===stance){draft.content='';draft.requestId=null;}
+    clearEvidenceIf(evidenceDescriptor,evidenceIdsToSend);
     if(parentId&&debateState.activeReply?.debateId===id&&debateState.activeReply.parentId===parentId)debateState.activeReply=null;
     toast(parentId?'답글이 등록되었어요.':'의견과 찬반 선택이 함께 등록되었어요.');
   },target);
@@ -222,7 +224,7 @@ function renderOrganizedArchive(){
     content=(!workerEndpoint()?debateMessage('익명 토론 공간을 준비하고 있어요.'):state?.error?`<div class="sync-notice" role="status"><span>${escapeHtml(state.error)}</span><button onclick="loadDebateArchive('${tab}')">다시 불러오기</button></div>`:'')+(state?.items.length?`<div class="list-wrap">${state.items.map(item=>tab==='comments'?renderOpinionCard(item,true):renderDebateCard(item)).join('')}</div>`:state?.loading?'<p class="loading-copy" role="status"><span class="spinner"></span>내 활동을 불러오고 있어요.</p>':debateEmpty('아직 보관된 토론 활동이 없어요.'))+(state?.hasMore?`<button class="btn-ghost load-more" onclick="loadDebateArchive('${tab}',true)" ${state.loading?'disabled':''}>더 보기</button>`:'');
   }else{
     const channel=tab==='epilogues'?'epilogues':'posts',items=tab==='posts'?posts:tab==='hearts'?hearts:tab==='comments'?comments:epilogues;
-    content=syncNotice(channel)+(items.length?`<div class="list-wrap">${tab==='posts'||tab==='hearts'?items.map(p=>postCardHTML(p)).join(''):tab==='comments'?items.map(({post,comment})=>`<article class="post-card" data-key="my-comment-${escapeHtml(comment.id)}"><div class="meta-row"><span>고민상담에 남긴 댓글</span><time>${timeAgo(comment.createdAt)}</time></div><h3><button class="post-title-link" data-post-id="${escapeHtml(post.id)}" onclick="goto('postDetail',{currentPostId:this.dataset.postId})">${escapeHtml(post.title)}</button></h3>${renderCommentContent(comment.content,'archive-concern-'+post.id+'-'+comment.id)}</article>`).join(''):renderEpilogueFeed(items.map(ep=>({ep,post:DB.posts.find(p=>p.id===ep.postId)})))}</div>`:collectionPlaceholder(channel,'아직 보관된 활동이 없어요'));
+    content=syncNotice(channel)+(items.length?`<div class="list-wrap">${tab==='posts'||tab==='hearts'?items.map(p=>postCardHTML(p)).join(''):tab==='comments'?items.map(({post,comment})=>`<article class="post-card" data-key="my-comment-${escapeHtml(comment.id)}"><div class="meta-row"><span>고민상담에 남긴 댓글</span><time>${timeAgo(comment.createdAt)}</time></div><h3><button class="post-title-link" data-post-id="${escapeHtml(post.id)}" onclick="goto('postDetail',{currentPostId:this.dataset.postId})">${escapeHtml(post.title)}</button></h3>${renderCommentContent(comment.content,'archive-concern-'+post.id+'-'+comment.id)}${renderEvidenceList(comment.evidence)}</article>`).join(''):renderEpilogueFeed(items.map(ep=>({ep,post:DB.posts.find(p=>p.id===ep.postId)})))}</div>`:collectionPlaceholder(channel,'아직 보관된 활동이 없어요'));
   }
   return `<div class="page-header"><button class="back-btn" onclick="goto('main')">${ICONS.back}</button><h2>나의 보관함</h2></div><div class="archive-groups" role="tablist" aria-label="보관함 공간">${[['concern','고민상담'],['debate','익명 토론']].map(([value,label])=>`<button id="archive-group-${value}" role="tab" aria-selected="${group===value}" aria-controls="archive-area" tabindex="${group===value?0:-1}" onclick="selectArchiveGroup('${value}')">${label}</button>`).join('')}</div><div id="archive-area" role="tabpanel" aria-labelledby="archive-group-${group}"><div class="archive-tabs" role="tablist" aria-label="${group==='concern'?'고민상담':'익명 토론'} 활동">${tabs.map(([value,label,count])=>`<button id="archive-tab-${value}" class="tab-sub ${tab===value?'active':''}" role="tab" aria-selected="${tab===value}" aria-controls="archive-list-panel" tabindex="${tab===value?0:-1}" onclick="selectArchiveTab('${value}')">${label}${group==='concern'?' ('+count+')':''}</button>`).join('')}</div><div id="archive-list-panel" role="tabpanel" aria-labelledby="archive-tab-${tab}">${content}</div></div>`;
 }

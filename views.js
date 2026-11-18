@@ -23,7 +23,7 @@ function render(options={}){
   const standalone=['landing','loading','connectionError','setupNeeded'].includes(ui.route)||(ui.route==='mypage'&&(!session.userId||pendingActions.has('signup')));
   const content=(views[ui.route]||renderLanding)();
   const pageHTML=standalone?`<main id="main-content" tabindex="-1">${content}</main>`:`<div class="app-shell">${sidebarHTML()}<div class="workspace">${topBarHTML()}<main id="main-content" class="page-content ${ui.route==='main'?'lounge':'inner-page'}" tabindex="-1">${content}</main></div></div>${ui.menuOpen?renderDrawer():''}`;
-  const html=pageHTML+(ui.accountModal?renderAccountModal():'')+renderDebateFeedback();
+  const html=pageHTML+(ui.accountModal?renderAccountModal():'')+renderDebateFeedback()+renderEvidenceDialog();
   if(!routeChanged&&window.morphdom){
     const target=document.createElement('div');target.id='root';target.innerHTML=html;
     // Give both trees the same field IDs BEFORE reconciliation, so a realtime
@@ -39,9 +39,9 @@ function render(options={}){
   updateBusyIndicator();
   document.dispatchEvent(new Event('mindly:view-rendered'));
   document.body.classList.toggle('menu-is-open',ui.menuOpen);
-  const hasDialog=!!ui.accountModal||!!debateState.feedback;
+  const hasDialog=!!ui.accountModal||!!debateState.feedback||!!evidenceState.dialog;
   document.body.classList.toggle('account-modal-open',hasDialog);
-  for(const child of root.children)child.inert=hasDialog&&!child.classList.contains('account-overlay')&&!child.classList.contains('feedback-overlay');
+  for(const child of root.children)child.inert=hasDialog&&!child.classList.contains('account-overlay')&&!child.classList.contains('feedback-overlay')&&!child.classList.contains('evidence-overlay');
   const shell=document.querySelector('.app-shell');if(shell)shell.inert=ui.menuOpen||hasDialog;
   if(ui.menuOpen&&!wasMenuOpen)document.querySelector('#menu-drawer button')?.focus({preventScroll:true});
   else if(options.navigation||routeChanged&&ui.route!=='loading')document.getElementById('main-content')?.focus({preventScroll:true});
