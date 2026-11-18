@@ -24,9 +24,9 @@ const reviewSchema={type:'object',properties:{sources:{type:'array',items:{type:
 function parsed(response){try{return JSON.parse(response.text);}catch{throw new ApiError(502,'EVIDENCE_AI_FORMAT','AI 응답을 읽지 못했어요. 다시 검색해주세요.');}}
 async function academicSources(claims,fetcher){
   const sources=[];
-  const queries=[claims[0]?.queryEn,claims[0]?.queryKo,...claims.slice(1).map(c=>c.queryEn)].filter(Boolean).slice(0,3);
+  const queries=claims.slice(0,3).flatMap(c=>[c.queryEn,c.queryKo]);
   for(const query of queries){
-    const response=await fetcher('https://api.crossref.org/works?rows=4&select=DOI,title,publisher,published,type,abstract&query.bibliographic='+encodeURIComponent(query),{headers:{Accept:'application/json','User-Agent':'Mindly-Evidence/1.0'},redirect:'manual',signal:AbortSignal.timeout(12000)});
+    const response=await fetcher('https://api.crossref.org/works?rows=2&select=DOI,title,publisher,published,type,abstract&query.bibliographic='+encodeURIComponent(query),{headers:{Accept:'application/json','User-Agent':'Mindly-Evidence/1.0'},redirect:'manual',signal:AbortSignal.timeout(12000)});
     if(!response.ok)throw new ApiError(503,'EVIDENCE_ACADEMIC_UNAVAILABLE','무료 학술자료 검색이 혼잡해요. 잠시 후 다시 시도해주세요.');
     const data=await response.json();
     for(const item of data.message?.items||[]){
@@ -36,7 +36,7 @@ async function academicSources(claims,fetcher){
       sources.push({url,title:plain(item.title[0],300),publisher:plain(item.publisher,160),publishedAt:publishedDate(parts.map((n,i)=>i?String(n).padStart(2,'0'):n).join('-')),type:'paper',excerpt:plain(item.abstract,2600),verification:'search_confirmed',notice:'Crossref의 서지 정보를 확인했으며 논문 원문은 검증하지 못했어요.'});
     }
   }
-  return sources;
+  return {sources,queries};
 }
 export async function findEvidence(env,input,onPhase=async()=>{},{generate,inspect=inspectEvidence,fetcher=fetch}={}){
   if(!env.GEMINI_API_KEY)throw new ApiError(503,'EVIDENCE_NOT_CONFIGURED','서버에 Gemini API 키가 아직 설정되지 않았어요. 직접 링크 첨부는 이용할 수 있어요.');
@@ -57,7 +57,7 @@ export async function findEvidence(env,input,onPhase=async()=>{},{generate,inspe
   await onPhase('searching');
   let catalog=[],searchSuggestions='',queries=[],provider='google';
   if(input.provider==='academic'){
-    provider='crossref';catalog=await academicSources(claims,fetcher);queries=claims.flatMap(c=>[c.queryKo,c.queryEn]);
+    provider='crossref';const academic=await academicSources(claims,fetcher);catalog=academic.sources;queries=academic.queries;
   }else{
     const grounded=await call(JSON.stringify({comment:input.content,context:input.context,claims}),{systemInstruction:guard+' Use Google Search for the Korean AND English queries and additional counter-evidence queries. Find actual original news articles, academic papers, government statistics, research institute reports and international organization sources. Prefer evidence directly addressing these claims over keyword matches. Consider authority, research design, recency appropriate to the claim, relevance and contrary findings. Include counter-evidence when found. Cite every source. Do not rely on uncited memory.',tools:[{googleSearch:{}}],temperature:0.1,maxOutputTokens:3500});
     const metadata=grounded.candidates?.[0]?.groundingMetadata;
