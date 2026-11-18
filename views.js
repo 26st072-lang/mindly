@@ -11,7 +11,7 @@ function sidebarHTML(){
   return `<aside class="sidebar" aria-label="마인들리 탐색"><button class="brand-button" onclick="goto('main',{mainTab:'home'})" aria-label="mindly 마인들리 홈">${brandHTML()}</button>${navigationHTML()}<div class="side-companion">${mascotScene('mini')}<strong>혼자가 아닌, 우리.</strong><p>작은 이야기도 괜찮아요.<br>마인들리가 여기서 기다릴게요.</p></div><div class="sidebar-bottom"><span class="little-dot"></span>함께 만드는 다정한 공간</div></aside>`;
 }
 function topBarHTML(){
-  return `<header class="topbar"><button id="menu-button" class="icon-btn mobile-menu" onclick="ui.menuOpen=true;render();" aria-label="메뉴 열기" aria-expanded="${ui.menuOpen}" aria-controls="menu-drawer">${ICONS.menu}</button><button class="mobile-brand" onclick="goto('main')" aria-label="마인들리 홈">${brandHTML()}</button><div class="topbar-title">${communityRouteTitle()}<span>조금 더 다정한 오늘</span></div><form class="search-box" role="search" onsubmit="event.preventDefault();doSearch();"><input id="search-input" type="search" aria-label="이야기 검색" placeholder="어떤 이야기를 찾고 있나요?" value="${escapeHtml(ui.searchQuery)}" oninput="ui.searchQuery=this.value"><button class="search-icon-btn" type="submit" aria-label="검색">${ICONS.search}</button></form><div class="topbar-account">${themeControlHTML()}${musicControlHTML()}<button class="profile-chip" onclick="goto('mypage')" aria-label="${session.userId?escapeHtml(session.nickname)+' 내 프로필':'로그인'}"><span class="avatar">${session.userId?avatarSVG(session.avatar):ICONS.user}</span><span>${session.userId?escapeHtml(session.nickname):'로그인'}</span></button></div></header>`;
+  return `<header class="topbar"><button id="menu-button" class="icon-btn mobile-menu" onclick="ui.menuOpen=true;render();" aria-label="메뉴 열기" aria-expanded="${ui.menuOpen}" aria-controls="menu-drawer">${ICONS.menu}</button><button class="mobile-brand" onclick="goto('main')" aria-label="마인들리 홈">${brandHTML()}</button><div class="topbar-title">${communityRouteTitle()}<span>조금 더 다정한 오늘</span></div><form class="search-box" role="search" onsubmit="event.preventDefault();doSearch();"><input id="search-input" type="search" maxlength="100" aria-label="이야기 검색" placeholder="어떤 이야기를 찾고 있나요?" value="${escapeHtml(ui.searchQuery)}" oninput="ui.searchQuery=this.value"><button class="search-icon-btn" type="submit" aria-label="검색">${ICONS.search}</button></form><div class="topbar-account">${themeControlHTML()}${musicControlHTML()}<button class="profile-chip" onclick="goto('mypage')" aria-label="${session.userId?escapeHtml(session.nickname)+' 내 프로필':'로그인'}"><span class="avatar">${session.userId?avatarSVG(session.avatar):ICONS.user}</span><span>${session.userId?escapeHtml(session.nickname):'로그인'}</span></button></div></header>`;
 }
 function render(options={}){
   if(typeof composing!=='undefined'&&composing&&options.background){compositionRenderPending=true;return;}
@@ -19,7 +19,7 @@ function render(options={}){
   const routeChanged=renderedRoute!==ui.route;
   const oldY=window.scrollY;
   const wasMenuOpen=!!document.getElementById('menu-drawer');
-  const views={loading:renderLoading,connectionError:renderConnectionError,setupNeeded:renderConnectionError,landing:renderLanding,main:renderMain,write:renderWrite,postDetail:renderPostDetail,writeEpilogue:renderWriteEpilogue,epilogueDetail:renderEpilogueDetail,archive:renderArchive,mypage:renderMyPage,myHearts:renderMyHearts,adminPanel:renderAdminPanel,debate:renderDebateBoard,debateWrite:renderDebateWrite,debateDetail:renderDebateDetail,debateImport:renderImportedDebate};
+  const views={loading:renderLoading,connectionError:renderConnectionError,setupNeeded:renderConnectionError,landing:renderLanding,main:renderMain,write:renderWrite,postDetail:renderPostDetail,writeEpilogue:renderWriteEpilogue,epilogueDetail:renderEpilogueDetail,archive:renderArchive,mypage:renderMyPage,myHearts:renderMyHearts,adminPanel:renderAdminPanel,search:renderSearchResults,debate:renderDebateBoard,debateWrite:renderDebateWrite,debateDetail:renderDebateDetail,debateImport:renderImportedDebate};
   const standalone=['landing','loading','connectionError','setupNeeded'].includes(ui.route)||(ui.route==='mypage'&&(!session.userId||pendingActions.has('signup')));
   const content=(views[ui.route]||renderLanding)();
   const pageHTML=standalone?`<main id="main-content" tabindex="-1">${content}</main>`:`<div class="app-shell">${sidebarHTML()}<div class="workspace">${topBarHTML()}<main id="main-content" class="page-content ${ui.route==='main'?'lounge':'inner-page'}" tabindex="-1">${content}</main></div></div>${ui.menuOpen?renderDrawer():''}`;
@@ -63,10 +63,36 @@ function renderLanding(){
   </div>`;
 }
 function doSearch(){
-  beginNavigation();
-  if(['debate','debateDetail'].includes(ui.route)){goto('debate');return;}
-  ui.mainTab='concern';ui.ageSubTab='all';ui.sort='recent';
-  if(ui.route!=='main')goto('main');else render();
+  const query=ui.searchQuery.trim();
+  if(query.length>100){toast('검색어는 100자까지 입력해주세요.');return;}
+  const searchTab=ui.route==='search'?ui.searchTab:ui.route.startsWith('debate')?'debate':'concern';
+  goto('search',{searchTerm:query,searchTab});
+}
+function selectSearchTab(tab){if(!['concern','debate'].includes(tab))return;ui.searchTab=tab;render();}
+async function loadDebateSearch(more=false){
+  if(!workerEndpoint())return;
+  const query=ui.searchTerm;
+  let state=debateState.search;
+  if(state.query!==query){state={query,items:[],loaded:false,loading:false,error:'',hasMore:false};debateState.search=state;}
+  if(state.loading||more&&!state.hasMore)return;
+  const epoch=debateState.epoch,offset=more?state.items.length:0;
+  state.loading=true;state.error='';backgroundRender();
+  try{
+    const data=await debateRequest('/v1/debates?q='+encodeURIComponent(query)+'&offset='+offset);
+    if(epoch!==debateState.epoch||debateState.search!==state)return;
+    state.items=more?[...state.items,...data.items.filter(item=>!state.items.some(old=>old.id===item.id))]:data.items;
+    state.hasMore=data.hasMore;state.loaded=true;
+  }catch(error){if(epoch===debateState.epoch&&debateState.search===state)state.error=error.message;}
+  finally{if(epoch===debateState.epoch&&debateState.search===state){state.loading=false;backgroundRender();}}
+}
+function renderSearchResults(){
+  const query=ui.searchTerm.toLocaleLowerCase(),concerns=DB.posts.filter(post=>!query||[post.title,post.content,...(post.hashtags||[])].some(value=>String(value||'').toLocaleLowerCase().includes(query))).sort((a,b)=>b.createdAt-a.createdAt);
+  const current=debateState.search,state=current.query===ui.searchTerm?current:{items:[],loaded:false,loading:true,error:'',hasMore:false},concernReady=!!sync.channels.posts?.ready;
+  const empty='<div class="empty-state"><h3>검색 결과가 없어요</h3><p>다른 검색어로 찾아보세요.</p></div>';
+  let content;
+  if(ui.searchTab==='concern')content=syncNotice('posts')+(concerns.length?`<div class="post-grid">${concerns.map(post=>postCardHTML(post)).join('')}</div>`:concernReady?empty:collectionPlaceholder('posts'));
+  else content=(!workerEndpoint()?debateMessage('익명 토론 공간을 준비하고 있어요.'):state.error?`<div class="sync-notice" role="status"><span>${escapeHtml(state.error)}</span><button onclick="loadDebateSearch()">다시 불러오기</button></div>`:'')+(state.items.length?`<div class="post-grid">${state.items.map(renderDebateCard).join('')}</div>`:state.loading&&workerEndpoint()?'<p class="loading-copy" role="status"><span class="spinner" aria-hidden="true"></span>토론을 검색하고 있어요.</p>':state.loaded?empty:'')+(state.hasMore?`<button class="btn-ghost load-more" onclick="loadDebateSearch(true)" ${state.loading?'disabled':''}>토론 검색 결과 더 보기</button>`:'');
+  return `<section class="search-intro"><span class="eyebrow">이야기 검색</span><h1>${ui.searchTerm?'“'+escapeHtml(ui.searchTerm)+'” 검색 결과':'전체 이야기'}</h1><p>고민과 토론을 탭으로 나눠 확인해보세요.</p></section><div class="search-tabs" role="tablist" aria-label="검색 결과 종류">${[['concern','고민상담',concernReady?String(concerns.length):'확인 중'],['debate','익명 토론',state.loaded?String(state.items.length)+(state.hasMore?'+':''):'확인 중']].map(([value,label,count])=>`<button id="search-tab-${value}" class="tab-main ${ui.searchTab===value?'active':''}" role="tab" aria-selected="${ui.searchTab===value}" aria-controls="search-panel" tabindex="${ui.searchTab===value?0:-1}" onclick="selectSearchTab('${value}')">${label} <span>${count}</span></button>`).join('')}</div><section id="search-panel" role="tabpanel" aria-labelledby="search-tab-${ui.searchTab}">${content}</section>`;
 }
 function renderDrawer(){
   return `<div class="overlay" onclick="if(event.target===this)closeMenu();"><section class="drawer" id="menu-drawer" role="dialog" aria-modal="true" aria-label="마인들리 메뉴"><div class="drawer-head">${brandHTML()}<button class="icon-btn" onclick="closeMenu()" aria-label="메뉴 닫기">✕</button></div>${navigationHTML('drawer')}<button class="nav-item" onclick="goto('mypage')">${ICONS.user}${session.userId?'내 프로필':'로그인 / 회원가입'}</button><div class="drawer-companion">${mascotScene('small')}</div></section></div>`;

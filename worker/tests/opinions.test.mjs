@@ -32,7 +32,7 @@ test('reply parents must belong to the same debate and still exist before modera
   assert.equal((await send(h,debate,'bob',{parentId:parent.id})).status,404);
 });
 
-test('only the comment author or administrator can edit and delete, with moderation and revision conflicts enforced',async()=>{
+test('only the comment author can edit, with moderation and revision conflicts enforced',async()=>{
   let reject=false;
   const h=harness({ai:(_env,_mode,task)=>task==='analyze'?sampleAnalysis:reject?{allowed:false,reason:'상대를 비하하는 표현입니다.',suggestion:'근거를 설명해 주시면 좋겠습니다.',flags:['비하']}:{allowed:true,reason:'',suggestion:'',flags:[]}}),debate=await h.publish('post-owner');
   const original=(await send(h,debate,'alice')).data.opinion;

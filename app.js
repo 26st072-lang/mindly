@@ -101,7 +101,7 @@ const pendingActions = new Set();
 /* ============ UI 상태 ============ */
 let ui = {
   route:'loading', mainTab:'home', ageSubTab:'all', sort:'recent', currentPostId:null, currentEpilogueId:null,
-  authMode:'login', searchQuery:'', menuOpen:false, archiveTab:'posts', editingPostId:null, editingCommentId:null,
+  authMode:'login', searchQuery:'', searchTerm:'', searchTab:'concern', expandedComments:new Set(), menuOpen:false, archiveTab:'posts', editingPostId:null, editingCommentId:null,
   signupDraft:{ username:'', pw:'', nickname:'', avatar:0, ageGroup:'middle' },
   loginDraft:{ identifier:'', pw:'' }, authError:'',
   accountModal:null,signupError:'',concernReply:null,

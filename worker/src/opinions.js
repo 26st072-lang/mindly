@@ -1,7 +1,7 @@
 import {ApiError,assertAdmin,identifier,text} from './security.js';
 
 export function opinionDTO(row,user){
-  return {id:row.id,debateId:row.debate_id,alias:row.alias,stance:row.stance,content:row.deleted_at?'':row.content,createdAt:row.created_at,editedAt:row.edited_at||null,deleted:Boolean(row.deleted_at),revision:row.revision||0,parentId:row.parent_id||null,parentAlias:row.parent_alias||null,isMine:Boolean(user&&row.user_id===user.uid),title:row.title};
+  return {id:row.id,debateId:row.debate_id,alias:row.alias,stance:row.stance,content:row.deleted_at?'':row.content,createdAt:row.created_at,editedAt:row.edited_at||null,deleted:Boolean(row.deleted_at),deletedByAdmin:Boolean(row.deleted_at&&row.deleted_by_admin),revision:row.revision||0,parentId:row.parent_id||null,parentAlias:row.parent_alias||null,isMine:Boolean(user&&row.user_id===user.uid),title:row.title};
 }
 function voteStatements(env,debateId,userId,stamp){
   return [
@@ -14,7 +14,7 @@ function sameRequest(row,user,debateId,content,stance,parentId){
   return opinionDTO(row,user);
 }
 export async function createOpinion(env,user,debateId,body,stamp,review){
-  const requestId=identifier(body.requestId),content=text(body.content,'의견',5,500),parentId=body.parentId?identifier(body.parentId):null;
+  const requestId=identifier(body.requestId),content=text(body.content,'의견',5,1000),parentId=body.parentId?identifier(body.parentId):null;
   if(!['agree','disagree'].includes(body.stance))throw new ApiError(400,'STANCE_REQUIRED','찬성 또는 반대를 선택해주세요.');
   const previous=await env.DB.prepare('SELECT * FROM opinions WHERE id=?').bind(requestId).first();
   if(previous)return {opinion:sameRequest(previous,user,debateId,content,body.stance,parentId),created:false};
@@ -38,19 +38,22 @@ export async function createOpinion(env,user,debateId,body,stamp,review){
 export async function changeOpinion(env,user,debateId,opinionId,method,body,stamp,review){
   const row=await env.DB.prepare('SELECT * FROM opinions WHERE id=? AND debate_id=?').bind(opinionId,debateId).first();
   if(!row)throw new ApiError(404,'NOT_FOUND','댓글을 찾을 수 없어요.');
-  if(row.user_id!==user.uid)assertAdmin(user,env);
+  if(row.user_id!==user.uid){
+    if(method==='PATCH')throw new ApiError(403,'COMMENT_AUTHOR_REQUIRED','익명 댓글은 작성자 본인만 수정할 수 있어요.');
+    assertAdmin(user,env);
+  }
   if(method==='DELETE'&&row.deleted_at)return opinionDTO(row,user);
   if(row.deleted_at)throw new ApiError(404,'NOT_FOUND','이미 삭제된 댓글이에요.');
   if(!Number.isInteger(body.revision)||body.revision!==row.revision)throw new ApiError(409,'COMMENT_CONFLICT','다른 곳에서 댓글이 변경됐어요. 내용을 복사한 뒤 새로고침해주세요.');
   let next;
   if(method==='PATCH'){
-    const content=text(body.content,'의견',5,500);
+    const content=text(body.content,'의견',5,1000);
     if(content===row.content)return opinionDTO(row,user);
     await review(content,row.stance);
     next=await env.DB.prepare('UPDATE opinions SET content=?,edited_at=?,revision=revision+1 WHERE id=? AND revision=? AND deleted_at IS NULL RETURNING *').bind(content,stamp,opinionId,row.revision).first();
   }else{
     const results=await env.DB.batch([
-      env.DB.prepare("UPDATE opinions SET content='',deleted_at=?,revision=revision+1 WHERE id=? AND revision=? AND deleted_at IS NULL RETURNING *").bind(stamp,opinionId,row.revision),
+      env.DB.prepare("UPDATE opinions SET content='',deleted_at=?,deleted_by_admin=?,revision=revision+1 WHERE id=? AND revision=? AND deleted_at IS NULL RETURNING *").bind(stamp,row.user_id!==user.uid?1:0,opinionId,row.revision),
       ...voteStatements(env,debateId,row.user_id,stamp),
     ]);
     next=results[0].results?.[0];

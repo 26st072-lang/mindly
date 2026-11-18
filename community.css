@@ -1,5 +1,6 @@
 .opinion-card .post-title-link::after{content:none}
-.app-shell:has(.lounge){max-width:1536px}
+.post-card:has(.comment-copy) .post-title-link::after{content:none}
+.app-shell,.app-shell:has(.lounge){max-width:none;margin:0}
 .home-welcome{display:flex;align-items:center;justify-content:space-between;gap:30px;padding:30px 36px;margin:4px 0 26px;border:1px solid var(--line);border-radius:26px;background:var(--surface-alt);overflow:hidden}
 .home-welcome h1{font-size:clamp(28px,3vw,42px);line-height:1.4;margin:12px 0;letter-spacing:-1.4px}.home-welcome p{font-size:14px;line-height:1.9;color:var(--ink-soft)}
 .mascot-scene.home{--home-mascot-scale:1;display:block;width:320px;height:312px;flex:0 0 320px;margin:0}
@@ -23,8 +24,11 @@
 .comment-body{flex:1;min-width:0}.comment-meta{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.comment-meta time{font-size:10px;color:var(--ink-soft)}
 .comment-actions,.comment-edit-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}.comment-actions button,.comment-edit-actions button{font-size:12px;min-height:34px;padding:5px 10px;border:1px solid var(--line);border-radius:8px;color:var(--ink-soft);background:var(--surface)}
 .comment-reply{margin-inline-start:calc(var(--reply-depth,1)*18px);border-inline-start:2px solid var(--line);padding-inline-start:14px}.reply-to{display:block;color:var(--ink-soft);font-size:11px;margin:5px 0 8px}.reply-context{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface-alt);margin-bottom:12px}.reply-context button{font-size:11px;text-decoration:underline;min-height:30px;flex:none}.deleted-comment{color:var(--ink-soft)!important;font-style:italic}.admin-comment-edit{width:100%;box-sizing:border-box}
-.opinion-card.stance-agree,.opinion-card.stance-disagree{border:1px solid var(--line);border-inline-start:5px solid var(--opinion-accent);border-radius:14px;padding:18px;margin-block:12px;background:color-mix(in srgb,var(--opinion-accent) 8%,var(--surface))}.stance-agree{--opinion-accent:#176b4d}.stance-disagree{--opinion-accent:#a04826}
-.opinion-card .stance-badge.agree{background:#176b4d;color:#fff;border-color:#176b4d}.opinion-card .stance-badge.disagree{background:#93411f;color:#fff;border-color:#93411f}.stance-option:has(input[value=agree]):is(.selected,:focus-within){border-color:#176b4d;background:color-mix(in srgb,#176b4d 10%,var(--surface))}.stance-option:has(input[value=disagree]):is(.selected,:focus-within){border-color:#a04826;background:color-mix(in srgb,#a04826 10%,var(--surface))}
+:root{--opinion-blue:#e5eef9;--opinion-white:#fff}
+:root[data-theme="night"]{--opinion-blue:#304862;--opinion-white:var(--surface)}
+.opinion-card.stance-agree,.opinion-card.stance-disagree{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-block:8px;max-width:760px}
+.opinion-card.stance-agree{background:var(--opinion-blue)}.opinion-card.stance-disagree{background:var(--opinion-white)}
+.opinion-card .stance-badge.agree{background:#4d6f9b;color:#fff;border-color:#4d6f9b}.opinion-card .stance-badge.disagree{background:var(--opinion-white);color:var(--ink);border-color:var(--primary)}.stance-option:has(input[value=agree]):is(.selected,:focus-within){border-color:var(--primary);background:var(--opinion-blue)}.stance-option:has(input[value=disagree]):is(.selected,:focus-within){border-color:var(--primary);background:var(--opinion-white)}
 @media(max-width:700px){.home-welcome{padding:24px;gap:12px}.home-welcome .mascot-scene.home{--home-mascot-scale:.75;width:240px;height:234px;flex-basis:240px}.recommendation-grid{grid-template-columns:1fr}.home-recommendations .post-card{height:auto}}
 @media(max-width:480px){.home-welcome{flex-direction:column-reverse;align-items:flex-start;gap:0;padding:20px 24px}.home-welcome .mascot-scene.home{align-self:center;flex-basis:auto}.home-welcome h1{font-size:30px}.home-welcome p{font-size:12px}.comment-reply{margin-inline-start:calc(var(--reply-depth,1)*10px);padding-inline-start:9px}.opinion-card.stance-agree,.opinion-card.stance-disagree{padding:14px}}
 .opinion-card .post-title-link:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
@@ -49,3 +53,45 @@
 .music-widget{display:flex;align-items:center;gap:3px;position:relative;flex:none}.music-info>summary{list-style:none;display:flex;align-items:center;justify-content:center;width:23px;min-height:32px;cursor:pointer;font-size:16px;color:var(--ink-soft);border-radius:8px}.music-info>summary::-webkit-details-marker{display:none}.music-info>summary:focus-visible{outline:2px solid var(--primary);outline-offset:2px}.music-popover{position:absolute;top:calc(100% + 10px);right:0;z-index:75;width:min(275px,calc(100vw - 42px));box-sizing:border-box;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:var(--shadow);text-align:left;white-space:normal;color:var(--ink)}.music-popover>strong{display:block;font-size:15px;margin-top:8px;line-height:1.6}.music-popover>p{font-size:11px;line-height:1.9;color:var(--ink-soft);margin:10px 0 18px}.music-popover>label{display:block;font-size:12px;font-weight:700}.music-popover output{float:right;color:var(--ink-soft)}.music-popover input[type=range]{display:block;width:100%;margin-top:12px;accent-color:var(--primary)}
 @media(max-width:700px){.community-choice-grid{gap:14px}.community-choice{padding:22px}.community-choice h2{font-size:21px}.debate-intro{align-items:flex-start;flex-direction:column;gap:10px}.debate-intro h1{font-size:25px}.debate-intro>.btn-primary{width:100%}.stance-option{padding:12px;gap:7px}.music-info>summary{width:19px}.topbar-account{gap:5px}}
 @media(max-width:480px){.community-choice-grid{grid-template-columns:1fr;margin-bottom:28px}.community-choice{padding:23px}.community-choice .btn-primary{width:100%}.debate-write{padding:20px}.image-previews{gap:8px}.image-previews img{height:110px}.stance-labels{grid-template-columns:1fr}.stance-choice{grid-template-columns:1fr}.feedback-dialog{padding:22px}.feedback-dialog h2{font-size:19px}.ai-mode-options{grid-template-columns:1fr}.debate-detail{padding:22px}.debate-detail .detail-title{font-size:23px}.archive-tabs [role=tab]{font-size:11px;padding:8px 10px}.music-widget{gap:0}.music-info>summary{width:18px;font-size:15px}.entry-header-tools{gap:5px}}
+.comment-item{max-width:760px;padding:11px 0;gap:10px}
+.comment-actions,.comment-edit-actions{justify-content:flex-end;gap:6px;margin-top:6px}
+.comment-actions button,.comment-edit-actions button{font-size:11px;min-height:30px;padding:4px 9px}
+.comment-copy .comment-text{margin:6px 0;font-size:13px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
+.comment-copy .comment-text.is-collapsed{display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+.comment-more{min-height:30px;font-size:11px;color:var(--primary-strong);text-decoration:underline;text-underline-offset:3px}
+.comment-more[hidden]{display:none}
+.comment-limit{justify-self:end;font-size:11px;color:var(--ink-soft);margin-top:-7px}
+.inline-reply{border-top:1px solid var(--line);margin-top:12px;padding-top:14px}
+.inline-reply-form{display:grid;gap:12px}.inline-reply .reply-context{margin:0;padding:9px 11px;font-size:11px}
+.inline-reply .stance-choice{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.inline-reply .stance-choice legend{font-size:12px;margin-bottom:8px}
+.inline-reply .stance-option{display:flex;align-items:center;padding:9px 11px;gap:8px;font-size:12px}
+.inline-reply .stance-option span{display:none}.inline-reply .stance-option input{margin:0}
+.inline-reply .debate-field{gap:6px;font-size:12px}.inline-reply .debate-field textarea{min-height:96px;resize:vertical}
+.inline-reply .field-help{margin:0;font-size:11px}.inline-reply-form>.btn-primary{justify-self:end;min-height:38px;font-size:12px}
+.search-intro{margin:8px 0 24px}.search-intro h1{font-size:clamp(23px,3vw,31px);line-height:1.5;margin:10px 0;letter-spacing:-1px;overflow-wrap:anywhere}.search-intro p{font-size:13px;color:var(--ink-soft)}
+.search-tabs{display:flex;gap:24px;border-bottom:1px solid var(--line);margin-bottom:24px}.search-tabs .tab-main span{font-size:11px;color:var(--ink-soft);margin-left:5px}
+@media(max-width:900px){
+  :root{--header-height:112px}html{scrollbar-gutter:auto}
+  .topbar{height:112px;display:grid;grid-template-columns:36px minmax(0,1fr) auto;grid-template-rows:48px 40px;gap:4px 10px;padding:8px 20px 12px}
+  .mobile-menu{grid-column:1;grid-row:1}.topbar .mobile-brand{position:absolute;grid-area:auto;left:50%;top:8px;transform:translateX(-50%);height:48px;display:flex;align-items:center;padding:0}
+  .topbar .mobile-brand .brand{font-size:25px}.topbar .mobile-brand .brand>span{font-size:19px}
+  .topbar-account{grid-column:3;grid-row:1;margin:0;gap:4px}.topbar-account .profile-chip>span:last-child{display:none}.topbar-account .profile-chip .avatar{width:28px;height:28px}
+  .topbar-account .theme-control,.topbar-account .music-control{width:30px;min-height:34px;height:34px;padding:7px}.topbar-account .music-info>summary{width:18px}
+  .search-box{grid-column:1/-1;grid-row:2;width:100%;height:36px;max-width:none;margin:0}
+}
+@media(max-width:700px){
+  .entry-screen .landing-header,.entry-screen .auth-brand{position:relative;justify-content:flex-end}
+  .entry-screen .landing-header>.brand,.entry-screen .auth-brand>button:first-child{position:absolute;left:50%;transform:translateX(-50%);margin:0}
+  .entry-screen .auth-brand .back-btn{position:absolute;left:0;top:50%;transform:translateY(-50%)}
+}
+@media(max-width:380px){
+  .entry-screen .brand,.topbar .mobile-brand .brand{font-size:23px}
+  .entry-screen .landing-header .theme-control,.entry-screen .landing-header .music-control,.entry-screen .auth-brand .theme-control,.entry-screen .auth-brand .music-control{width:28px;min-height:34px;height:34px;padding:6px}
+  .entry-header-tools .music-info>summary{width:16px}.entry-header-tools{gap:4px}
+  .topbar .mobile-brand .brand{font-size:22px}.topbar .mobile-brand .brand>span{font-size:17px}
+  .topbar-account{gap:2px}.topbar-account .profile-chip .avatar{width:24px;height:24px}
+  .topbar-account .theme-control,.topbar-account .music-control{width:24px;padding:4px}
+  .topbar-account .theme-control svg,.topbar-account .music-control svg{width:16px;height:16px}
+}
+@media(max-width:480px){.opinion-card.stance-agree,.opinion-card.stance-disagree{padding:10px 12px}.comment-item>.avatar{width:28px;height:28px}}

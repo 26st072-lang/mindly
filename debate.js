@@ -1,8 +1,8 @@
 /* The browser calls our Worker. Provider keys never enter this file or storage. */
-const debateState={config:null,configLoading:false,configError:'',list:[],listLoaded:false,listLoading:false,listError:'',hasMore:false,loadedAt:0,details:new Map(),archives:{},admin:null,adminLoading:false,adminError:'',adminCheck:null,commentEdit:null,feedback:null,error:'',images:[],imageLoading:false,consent:false,analysis:null,draft:null,opinionDrafts:{},epoch:0,controllers:new Set()};
+const debateState={search:{query:null,items:[],loaded:false,loading:false,error:'',hasMore:false},replyDrafts:{},activeReply:null,errorTarget:null,config:null,configLoading:false,configError:'',list:[],listLoaded:false,listLoading:false,listError:'',hasMore:false,loadedAt:0,details:new Map(),archives:{},admin:null,adminLoading:false,adminError:'',adminCheck:null,commentEdit:null,feedback:null,error:'',images:[],imageLoading:false,consent:false,analysis:null,draft:null,opinionDrafts:{},epoch:0,controllers:new Set()};
 Object.assign(ui,{archiveGroup:'concern',currentDebateId:null});
 function workerEndpoint(){return String(window.MINDLY_CONFIG?.workerUrl||'').replace(/\/+$/,'');}
-function communityRouteTitle(){return ui.route==='main'?(ui.mainTab==='home'?'마인들리 홈':'마음 라운지'):ui.route.startsWith('debate')?'익명 토론 게시판':ui.route==='archive'?'나의 보관함':'나의 마인들리';}
+function communityRouteTitle(){return ui.route==='main'?(ui.mainTab==='home'?'마인들리 홈':'마음 라운지'):ui.route==='search'?'이야기 검색':ui.route.startsWith('debate')?'익명 토론 게시판':ui.route==='archive'?'나의 보관함':'나의 마인들리';}
 function getDebateToken(user,refresh,signal){
   return new Promise((resolve,reject)=>{
     let timer;
@@ -58,6 +58,7 @@ async function loadDebates(reset=false){
 function updateDebate(debate){
   const index=debateState.list.findIndex(d=>d.id===debate.id);
   if(index>=0)debateState.list[index]=debate;
+  debateState.search.items=debateState.search.items.map(item=>item.id===debate.id?debate:item);
   const detail=debateState.details.get(debate.id);if(detail)detail.debate=debate;
   debateState.archives={};
 }
@@ -73,7 +74,7 @@ async function loadDebateDetail(id,more=false){
 }
 async function debateAction(key,callback,target='debate-opinion'){
   if(!requireLogin())return;
-  const epoch=debateState.epoch;debateState.error='';
+  const epoch=debateState.epoch;debateState.error='';debateState.errorTarget=target;
   return runAction(key,async()=>{
     try{return await callback(epoch);}
     catch(error){
@@ -138,21 +139,29 @@ async function publishDebate(){
     debateState.archives={};debateState.listLoaded=false;goto('debateDetail',{currentDebateId:result.debate.id});toast('새 토론이 게시되었어요.');
   },'debate-title');
 }
-function opinionDraft(id){return debateState.opinionDrafts[id]||(debateState.opinionDrafts[id]={stance:'',content:'',requestId:null,parentId:null});}
-function setOpinionStance(id,stance){const draft=opinionDraft(id);draft.stance=stance;draft.requestId=null;render();}
-async function submitDebateOpinion(id){
-  const draft=opinionDraft(id);
+function opinionDraft(id,parentId=null){
+  const drafts=parentId?debateState.replyDrafts:debateState.opinionDrafts,key=parentId?id+':'+parentId:id;
+  return drafts[key]||(drafts[key]={stance:'',content:'',requestId:null,parentId});
+}
+function setOpinionStance(id,stance,parentId=null){const draft=opinionDraft(id,parentId);draft.stance=stance;draft.requestId=null;render();}
+function updateOpinionDraft(id,parentId,input){
+  const draft=opinionDraft(id,parentId);draft.content=input.value;draft.requestId=null;
+  const counter=document.getElementById(input.id+'-count');if(counter)counter.textContent=String(input.value.length);
+}
+async function submitDebateOpinion(id,parentId=null){
+  const draft=opinionDraft(id,parentId),action=parentId?'debate-reply-'+parentId:'debate-opinion',target=parentId?'reply-opinion-'+parentId:'debate-opinion';
   if(!draft.stance){toast('찬성 또는 반대를 선택해주세요.');return;}
-  if(draft.content.trim().length<5){toast('입장을 선택한 이유를 5자 이상 적어주세요.');return;}
+  if(draft.content.trim().length<5||draft.content.trim().length>1000){toast('의견을 5~1000자로 적어주세요.');return;}
   const content=draft.content.trim(),stance=draft.stance,requestId=draft.requestId||(draft.requestId=crypto.randomUUID());
-  return debateAction('debate-opinion',async epoch=>{
-    const result=await debateRequest('/v1/debates/'+id+'/opinions',{method:'POST',body:{content,stance,requestId,parentId:draft.parentId||null}});
+  return debateAction(action,async epoch=>{
+    const result=await debateRequest('/v1/debates/'+id+'/opinions',{method:'POST',body:{content,stance,requestId,parentId}});
     if(epoch!==debateState.epoch)return;
     updateDebate(result.debate);
     const state=debateState.details.get(id);if(state&&!state.opinions.some(item=>item.id===result.opinion.id))state.opinions.push(result.opinion);
-    if(draft.content.trim()===content){draft.content='';draft.requestId=null;draft.parentId=null;}
-    toast('의견과 찬반 선택이 함께 등록되었어요.');
-  });
+    if(draft.content.trim()===content&&draft.stance===stance){draft.content='';draft.requestId=null;}
+    if(parentId&&debateState.activeReply?.debateId===id&&debateState.activeReply.parentId===parentId)debateState.activeReply=null;
+    toast(parentId?'답글이 등록되었어요.':'의견과 찬반 선택이 함께 등록되었어요.');
+  },target);
 }
 async function toggleDebateHeart(id){
   const record=debateState.details.get(id)?.debate||debateState.list.find(d=>d.id===id)||Object.values(debateState.archives).flatMap(state=>state.items).find(d=>d.id===id);if(!record)return;
@@ -178,7 +187,7 @@ function renderDebateDetail(){
   const id=ui.currentDebateId,state=debateState.details.get(id),d=state?.debate;
   if(!d)return `<div class="page-header"><button class="back-btn" onclick="goto('debate')">${ICONS.back}</button><h2>익명 토론</h2></div>${state?.error?debateMessage(state.error):'<p class="loading-copy" role="status"><span class="spinner"></span>토론을 불러오고 있어요.</p>'}<button class="btn-ghost" onclick="loadDebateDetail('${id}')">다시 불러오기</button>`;
   const draft=opinionDraft(id),total=d.agreeCount+d.disagreeCount;
-  return `<div class="page-header"><button class="back-btn" onclick="goto('debate')">${ICONS.back}</button><h2>익명 토론</h2></div><article class="detail-wrap debate-detail"><div class="meta-row"><span class="story-label">서로 존중하는 익명 토론</span><time>${timeAgo(d.createdAt)}</time></div><h1 class="detail-title">${escapeHtml(d.title)}</h1><p class="detail-content">${escapeHtml(d.summary).replace(/\n/g,'<br>')}</p><section class="issues-box"><h2>함께 생각할 쟁점</h2><ol>${d.issues.map(issue=>`<li>${escapeHtml(issue)}</li>`).join('')}</ol></section><div class="detail-actions"><button class="action-pill ${d.hearted?'hearted':''}" data-action="debate-heart-${id}" onclick="toggleDebateHeart('${id}')" aria-pressed="${d.hearted}">${ICONS.heart} 공감 ${d.heartCount}</button>${d.isMine||session.isAdmin?`<button class="action-pill" data-action="delete-debate-${id}" onclick="deleteDebate('${id}')">토론 삭제</button>`:''}<button class="text-link" onclick="loadDebateDetail('${id}')">새로고침</button></div><section class="debate-results" aria-label="현재 찬반 현황"><h2>${total}명이 생각을 나눴어요</h2><div class="debate-counts"><span>찬성 ${d.agreeCount}명</span><span>반대 ${d.disagreeCount}명</span></div><div class="vote-meter" role="img" aria-label="찬성 ${d.agreeCount}명, 반대 ${d.disagreeCount}명"><i style="width:${total?d.agreeCount/total*100:50}%"></i></div>${d.myStance?`<p class="field-help">내 현재 입장: ${d.myStance==='agree'?'찬성':'반대'}. 새 의견을 남기면 입장을 바꿀 수 있어요. 한 사람은 한 표로 집계해요.</p>`:''}</section><section class="opinion-compose"><h2>당신은 어떻게 생각하나요?</h2>${session.userId?`<form onsubmit="event.preventDefault();submitDebateOpinion('${id}')">${renderDebateReplyContext(id,draft)}<fieldset class="stance-choice"><legend>입장을 선택해주세요 <span>(필수)</span></legend>${[['agree','찬성',d.agreeLabel],['disagree','반대',d.disagreeLabel]].map(([value,label,description])=>`<label class="stance-option ${draft.stance===value?'selected':''}"><input type="radio" name="debate-stance" value="${value}" ${draft.stance===value?'checked':''} required onchange="setOpinionStance('${id}','${value}')" ${pendingActions.has('debate-opinion')?'disabled':''}><strong>${label}</strong><span>${escapeHtml(description)}</span></label>`).join('')}</fieldset><label class="debate-field" for="debate-opinion">이렇게 생각한 이유 <span>(필수 · 5~500자)</span><textarea id="debate-opinion" required minlength="5" maxlength="500" placeholder="사람에 대한 평가 대신, 주제에 관한 이유를 적어주세요." oninput="opinionDraft('${id}').content=this.value;opinionDraft('${id}').requestId=null" ${pendingActions.has('debate-opinion')?'readonly':''}>${escapeHtml(draft.content)}</textarea></label><p class="field-help">제출하면 AI가 표현을 확인해요. 수정 안내가 나오면 직접 고친 뒤 다시 제출해주세요.</p>${debateState.error?`<p class="form-error" role="alert">${escapeHtml(debateState.error)}</p>`:''}<button class="btn-primary" type="submit" data-action="debate-opinion">입장과 의견 제출</button></form>`:`<p>로그인하면 익명으로 참여할 수 있어요.</p><button class="btn-primary" onclick="goto('mypage')">로그인하고 참여하기</button>`}</section><section class="debate-opinions"><h2>나누고 있는 의견 <span>${d.commentCount}</span></h2>${state.error?debateMessage(state.error):''}${state.opinions.length?threadedComments(state.opinions).map(({item,depth,parent})=>renderDiscussionOpinion(item,{depth,parent})).join(''):'<p class="field-help">아직 등록된 의견이 없어요. 첫 생각을 들려주세요.</p>'}${state.hasMore?`<button class="btn-ghost load-more" onclick="loadDebateDetail('${id}',true)" ${state.loading?'disabled':''}>의견 더 보기</button>`:''}</section></article>`;
+  return `<div class="page-header"><button class="back-btn" onclick="goto('debate')">${ICONS.back}</button><h2>익명 토론</h2></div><article class="detail-wrap debate-detail"><div class="meta-row"><span class="story-label">서로 존중하는 익명 토론</span><time>${timeAgo(d.createdAt)}</time></div><h1 class="detail-title">${escapeHtml(d.title)}</h1><p class="detail-content">${escapeHtml(d.summary).replace(/\n/g,'<br>')}</p><section class="issues-box"><h2>함께 생각할 쟁점</h2><ol>${d.issues.map(issue=>`<li>${escapeHtml(issue)}</li>`).join('')}</ol></section><div class="detail-actions"><button class="action-pill ${d.hearted?'hearted':''}" data-action="debate-heart-${id}" onclick="toggleDebateHeart('${id}')" aria-pressed="${d.hearted}">${ICONS.heart} 공감 ${d.heartCount}</button>${d.isMine||session.isAdmin?`<button class="action-pill" data-action="delete-debate-${id}" onclick="deleteDebate('${id}')">토론 삭제</button>`:''}<button class="text-link" onclick="loadDebateDetail('${id}')">새로고침</button></div><section class="debate-results" aria-label="현재 찬반 현황"><h2>${total}명이 생각을 나눴어요</h2><div class="debate-counts"><span>찬성 ${d.agreeCount}명</span><span>반대 ${d.disagreeCount}명</span></div><div class="vote-meter" role="img" aria-label="찬성 ${d.agreeCount}명, 반대 ${d.disagreeCount}명"><i style="width:${total?d.agreeCount/total*100:50}%"></i></div>${d.myStance?`<p class="field-help">내 현재 입장: ${d.myStance==='agree'?'찬성':'반대'}. 새 의견을 남기면 입장을 바꿀 수 있어요. 한 사람은 한 표로 집계해요.</p>`:''}</section><section class="opinion-compose"><h2>당신은 어떻게 생각하나요?</h2>${renderDebateOpinionForm(d)}</section><section class="debate-opinions"><h2>나누고 있는 의견 <span>${d.commentCount}</span></h2>${state.error?debateMessage(state.error):''}${state.opinions.length?threadedComments(state.opinions).map(({item,depth,parent})=>renderDiscussionOpinion(item,{depth,parent})).join(''):'<p class="field-help">아직 등록된 의견이 없어요. 첫 생각을 들려주세요.</p>'}${state.hasMore?`<button class="btn-ghost load-more" onclick="loadDebateDetail('${id}',true)" ${state.loading?'disabled':''}>의견 더 보기</button>`:''}</section></article>`;
 }
 function renderOpinionCard(item,archive=false){return renderDiscussionOpinion(item,{archive:archive===true});}
 
@@ -213,7 +222,7 @@ function renderOrganizedArchive(){
     content=(!workerEndpoint()?debateMessage('익명 토론 공간을 준비하고 있어요.'):state?.error?`<div class="sync-notice" role="status"><span>${escapeHtml(state.error)}</span><button onclick="loadDebateArchive('${tab}')">다시 불러오기</button></div>`:'')+(state?.items.length?`<div class="list-wrap">${state.items.map(item=>tab==='comments'?renderOpinionCard(item,true):renderDebateCard(item)).join('')}</div>`:state?.loading?'<p class="loading-copy" role="status"><span class="spinner"></span>내 활동을 불러오고 있어요.</p>':debateEmpty('아직 보관된 토론 활동이 없어요.'))+(state?.hasMore?`<button class="btn-ghost load-more" onclick="loadDebateArchive('${tab}',true)" ${state.loading?'disabled':''}>더 보기</button>`:'');
   }else{
     const channel=tab==='epilogues'?'epilogues':'posts',items=tab==='posts'?posts:tab==='hearts'?hearts:tab==='comments'?comments:epilogues;
-    content=syncNotice(channel)+(items.length?`<div class="list-wrap">${tab==='posts'||tab==='hearts'?items.map(p=>postCardHTML(p)).join(''):tab==='comments'?items.map(({post,comment})=>`<article class="post-card" data-key="my-comment-${escapeHtml(comment.id)}"><div class="meta-row"><span>고민상담에 남긴 댓글</span><time>${timeAgo(comment.createdAt)}</time></div><h3><button class="post-title-link" data-post-id="${escapeHtml(post.id)}" onclick="goto('postDetail',{currentPostId:this.dataset.postId})">${escapeHtml(post.title)}</button></h3><p>${escapeHtml(comment.content)}</p></article>`).join(''):renderEpilogueFeed(items.map(ep=>({ep,post:DB.posts.find(p=>p.id===ep.postId)})))}</div>`:collectionPlaceholder(channel,'아직 보관된 활동이 없어요'));
+    content=syncNotice(channel)+(items.length?`<div class="list-wrap">${tab==='posts'||tab==='hearts'?items.map(p=>postCardHTML(p)).join(''):tab==='comments'?items.map(({post,comment})=>`<article class="post-card" data-key="my-comment-${escapeHtml(comment.id)}"><div class="meta-row"><span>고민상담에 남긴 댓글</span><time>${timeAgo(comment.createdAt)}</time></div><h3><button class="post-title-link" data-post-id="${escapeHtml(post.id)}" onclick="goto('postDetail',{currentPostId:this.dataset.postId})">${escapeHtml(post.title)}</button></h3>${renderCommentContent(comment.content,'archive-concern-'+post.id+'-'+comment.id)}</article>`).join(''):renderEpilogueFeed(items.map(ep=>({ep,post:DB.posts.find(p=>p.id===ep.postId)})))}</div>`:collectionPlaceholder(channel,'아직 보관된 활동이 없어요'));
   }
   return `<div class="page-header"><button class="back-btn" onclick="goto('main')">${ICONS.back}</button><h2>나의 보관함</h2></div><div class="archive-groups" role="tablist" aria-label="보관함 공간">${[['concern','고민상담'],['debate','익명 토론']].map(([value,label])=>`<button id="archive-group-${value}" role="tab" aria-selected="${group===value}" aria-controls="archive-area" tabindex="${group===value?0:-1}" onclick="selectArchiveGroup('${value}')">${label}</button>`).join('')}</div><div id="archive-area" role="tabpanel" aria-labelledby="archive-group-${group}"><div class="archive-tabs" role="tablist" aria-label="${group==='concern'?'고민상담':'익명 토론'} 활동">${tabs.map(([value,label,count])=>`<button id="archive-tab-${value}" class="tab-sub ${tab===value?'active':''}" role="tab" aria-selected="${tab===value}" aria-controls="archive-list-panel" tabindex="${tab===value?0:-1}" onclick="selectArchiveTab('${value}')">${label}${group==='concern'?' ('+count+')':''}</button>`).join('')}</div><div id="archive-list-panel" role="tabpanel" aria-labelledby="archive-tab-${tab}">${content}</div></div>`;
 }
@@ -247,12 +256,14 @@ document.addEventListener('mindly:view-rendered',()=>{
   if(!debateState.config&&!debateState.configLoading&&!debateState.configError)loadDebateConfig();
   if((ui.route==='main'&&ui.mainTab==='home'||ui.route==='debate')&&!debateState.listLoaded&&!debateState.listLoading&&!debateState.listError)loadDebates(true);
   if(ui.route==='debateDetail'&&ui.currentDebateId&&!debateState.details.has(ui.currentDebateId))loadDebateDetail(ui.currentDebateId);
+  if(ui.route==='search'&&debateState.search.query!==ui.searchTerm)loadDebateSearch();
   if(ui.route==='archive'&&ui.archiveGroup==='debate'&&!debateState.archives[ui.archiveTab])loadDebateArchive(ui.archiveTab);
   if(ui.route==='adminPanel'&&!debateState.admin&&!debateState.adminLoading&&!debateState.adminError)loadAIAdmin();
 });
 document.addEventListener('mindly:session-changed',()=>{
   debateState.epoch++;for(const controller of debateState.controllers)controller.abort();debateState.controllers.clear();clearDebateImages();
   Object.assign(debateState,{configLoading:false,configError:'',list:[],listLoaded:false,listLoading:false,listError:'',details:new Map(),archives:{},admin:null,adminLoading:false,adminError:'',adminCheck:null,commentEdit:null,feedback:null,error:'',analysis:null,draft:null,consent:false,opinionDrafts:{},imageLoading:false});
+  Object.assign(debateState,{search:{query:null,items:[],loaded:false,loading:false,error:'',hasMore:false},replyDrafts:{},activeReply:null,errorTarget:null});
 });
 document.addEventListener('keydown',event=>{if(!debateState.feedback)return;if(event.key==='Escape'){event.preventDefault();closeDebateFeedback();}else if(event.key==='Tab'){event.preventDefault();document.getElementById('feedback-confirm')?.focus();}});
 setInterval(()=>{if(!document.hidden&&ui.route==='debateDetail'){const state=debateState.details.get(ui.currentDebateId);if(state?.loaded&&!state.loading&&Date.now()-state.updatedAt>30000)loadDebateDetail(ui.currentDebateId);}},30000);

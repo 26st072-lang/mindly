@@ -159,7 +159,10 @@ export function createApp({ verifyUser = verifyFirebaseUser, ai = callAI, now = 
         }
         const offset = Math.min(100_000, Math.max(0, parseInt(url.searchParams.get('offset'), 10) || 0));
         if (path === '/v1/debates' && request.method === 'GET') {
-          const rows = (await env.DB.prepare(`SELECT ${selectors} FROM debates d ORDER BY d.created_at DESC,d.id DESC LIMIT ? OFFSET ?`).bind(user?.uid || '', user?.uid || '', PAGE_SIZE + 1, offset).all()).results;
+          const query=text(url.searchParams.get('q')||'','검색어',0,100);
+          const pattern='%'+query.replace(/[\\%_]/g,value=>'\\'+value)+'%';
+          const filter=query?" WHERE (d.title LIKE ? ESCAPE '\\' OR d.summary LIKE ? ESCAPE '\\' OR d.issues LIKE ? ESCAPE '\\')":'';
+          const rows = (await env.DB.prepare(`SELECT ${selectors} FROM debates d${filter} ORDER BY d.created_at DESC,d.id DESC LIMIT ? OFFSET ?`).bind(user?.uid || '', user?.uid || '', ...(query?[pattern,pattern,pattern]:[]), PAGE_SIZE + 1, offset).all()).results;
           return respond({ items: rows.slice(0, PAGE_SIZE).map(r => dto(r, user)), hasMore: rows.length > PAGE_SIZE });
         }
         if (path === '/v1/me' && request.method === 'GET') {

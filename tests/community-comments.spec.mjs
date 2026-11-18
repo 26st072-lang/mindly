@@ -61,7 +61,7 @@ test('concern authors can reply, edit and delete their own comment while replies
 test('debate replies keep parent IDs, use the same anonymous number and have distinct stance colors',async({page})=>{
   const state=await setup(page);await page.evaluate(id=>goto('debateDetail',{currentDebateId:id}),debateId);
   await page.locator(`[data-key="opinion-${otherId}"]`).getByRole('button',{name:'답글',exact:true}).click();await expect(page.locator('.reply-context')).toContainText('익명 2');
-  await page.getByRole('radio',{name:/반대/}).check();await page.locator('#debate-opinion').fill('사용 기준을 함께 논의하는 것이 좋겠어요.');await page.getByRole('button',{name:'입장과 의견 제출'}).click();
+  await page.locator('.inline-reply').getByRole('radio',{name:/반대/}).check();await page.locator('#reply-opinion-'+otherId).fill('사용 기준을 함께 논의하는 것이 좋겠어요.');await page.getByRole('button',{name:'답글 제출'}).click();
   await expect(page.locator('.comment-reply')).toContainText('사용 기준을 함께 논의하는 것이 좋겠어요.');
   expect(state.opinions.at(-1).parentId).toBe(otherId);expect(state.opinions.at(-1).alias).toBe('익명 1');
   const colors=await page.evaluate(()=>['.stance-agree','.stance-disagree'].map(selector=>getComputedStyle(document.querySelector(selector)).backgroundColor));expect(colors[0]).not.toBe(colors[1]);
