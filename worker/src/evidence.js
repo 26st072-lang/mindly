@@ -48,7 +48,7 @@ export async function evidenceRoute({request,path,env,user,stamp,cors,respond,se
   const body=await readJSON(request);
   if(body.consent!==true)throw new ApiError(400,'CONSENT_REQUIRED','작성한 내용의 Google AI 전송에 동의해주세요.');
   const input={content:text(body.content,'댓글',5,1000),context:text(body.context||'','문맥',0,3000),provider:body.provider==='academic'?'academic':'google'};
-  const model=evidenceModel(env),key=await cacheKey({uid:user.uid,...input,model,version:1});
+  const model=evidenceModel(env),key=await cacheKey({uid:user.uid,...input,model,version:2});
   let previous=await env.DB.prepare('SELECT * FROM evidence_jobs WHERE user_id=? AND cache_key=?').bind(user.uid,key).first();
   if(previous&&previous.expires_at>stamp&&previous.phase==='done')return respond(jobValue(previous));
   if(previous&&!['done','error'].includes(previous.phase)&&stamp-previous.updated_at<180000)return respond(jobValue(previous),202);

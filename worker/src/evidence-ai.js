@@ -20,7 +20,17 @@ export function providerError(error){
 }
 const string={type:'string'};
 const claimsSchema={type:'object',properties:{claims:{type:'array',maxItems:3,items:{type:'object',properties:{text:string,queryKo:string,queryEn:string},required:['text','queryKo','queryEn']}}},required:['claims']};
-const reviewSchema={type:'object',properties:{sources:{type:'array',items:{type:'object',properties:{id:string,summary:string,relation:{type:'string',enum:['supports','partial','contradicts','related']},relationReason:string,trust:{type:'string',enum:['high','medium','low','unverified']},trustReason:string,relevance:{type:'integer',minimum:0,maximum:100}},required:['id','summary','relation','relationReason','trust','trustReason','relevance']}}},required:['sources']};
+const reviewSchema={type:'object',properties:{sources:{type:'array',items:{type:'object',properties:{id:string,summary:string,relation:{type:'string',enum:['supports','partial','contradicts','related']},relationReason:string,evidenceQuote:string,trust:{type:'string',enum:['high','medium','low','unverified']},trustReason:string,relevance:{type:'integer',minimum:0,maximum:100}},required:['id','summary','relation','relationReason','evidenceQuote','trust','trustReason','relevance']}}},required:['sources']};
+function topicOverlap(source,claims){
+  const corpus=plain(source.title+' '+(source.excerpt||''),6000).toLowerCase();
+  const generic=new Set('study studies research result results effect effects impact review systematic evidence analysis association relationship between among with from that this related and for the are how use to of in on is as by an or at be do'.split(' '));
+  const words=new Set(corpus.match(/[a-z0-9]{2,}/g)||[]);
+  return claims.some(claim=>{
+    const en=[...new Set((claim.queryEn.toLowerCase().match(/[a-z]{2,}/g)||[]).filter(term=>!generic.has(term)))];
+    const ko=[...new Set(claim.queryKo.match(/[가-힣]{2,}/g)||[])];
+    return (en.length>0&&en.filter(term=>term.length<4?words.has(term):corpus.includes(term)).length>=Math.min(2,en.length))||(ko.length>0&&ko.filter(term=>corpus.includes(term)).length>=Math.min(2,ko.length));
+  });
+}
 function parsed(response){try{return JSON.parse(response.text);}catch{throw new ApiError(502,'EVIDENCE_AI_FORMAT','AI 응답을 읽지 못했어요. 다시 검색해주세요.');}}
 async function academicSources(claims,fetcher){
   const sources=[];
@@ -79,12 +89,15 @@ export async function findEvidence(env,input,onPhase=async()=>{},{generate,inspe
   catalog=[...new Map(catalog.map(source=>[source.url,source])).values()].slice(0,12).map((source,i)=>({...source,id:String(i+1)}));
   if(!catalog.length)return {claims,sources:[],provider,model,queries,searchSuggestions};
   await onPhase('reviewing');
-  const review=parsed(await call(JSON.stringify({claims,catalog}),{systemInstruction:guard+' Review ONLY the supplied catalog IDs. Distinguish supports (directly supports exact claim), partial (limited scope or caveats), contradicts, related (no direct support). Search snippets and metadata are NOT original full texts. When excerpt is absent explain original content unverified and use trust=unverified; never infer study quality, causation or peer review from publisher reputation alone. Otherwise evaluate authority, recency, actual relevance and research limitations present in the excerpt. Explain trust and relation separately, summarize without exaggeration, rank by substantive relevance. Include contrary results. Never supply URLs or guessed publication dates.',responseMimeType:'application/json',responseJsonSchema:reviewSchema,temperature:0.1,maxOutputTokens:7000}));
+  const review=parsed(await call(JSON.stringify({claims,catalog}),{systemInstruction:guard+' Review ONLY supplied catalog IDs. Evaluate exact population, exposure, outcome and claim scope. Distinguish supports (directly supports exact claim), partial (limited scope or caveats), contradicts (actual opposing finding about the SAME issue), related (no direct support). Unrelated material, different populations/topics and lack of evidence are NEVER contradictions. Omit irrelevant sources, score them below 40; return zero sources if none relevant. Include contrary findings only IF actually present; never manufacture an opposing view. For supports/partial/contradicts supply evidenceQuote: a literal 20-400 character quote from that source EXCERPT justifying the relation. Without a relevant excerpt use related, evidenceQuote="", and explain original content unverified. Search snippets and metadata are NOT original full texts. When excerpt is absent use trust=unverified; never infer study quality, causation or peer review from publisher reputation alone. Otherwise assess authority, recency, relevance and research limitations actually present. Explain trust and relation separately, summarize without exaggeration. Never supply URLs or guessed dates.',responseMimeType:'application/json',responseJsonSchema:reviewSchema,temperature:0.1,maxOutputTokens:7500}));
   const byId=new Map(catalog.map(source=>[source.id,source])),seen=new Set(),ranked=[];
   for(const item of Array.isArray(review.sources)?review.sources:[]){
     const source=byId.get(item.id);if(!source||seen.has(source.id))continue;seen.add(source.id);
+    const relevance=Math.max(0,Math.min(100,Number(item.relevance)||0));
+    if(relevance<40||!topicOverlap(source,claims))continue;
     const checked=source.verification==='excerpt_checked';
-    ranked.push({...source,excerpt:undefined,snippets:undefined,summary:plain(item.summary,800),relation:['supports','partial','contradicts','related'].includes(item.relation)?item.relation:'related',relationReason:plain(item.relationReason,600),trust:checked&&['high','medium','low'].includes(item.trust)?item.trust:'unverified',trustReason:plain(item.trustReason,600),relevance:Math.max(0,Math.min(100,Number(item.relevance)||0)),originalChecked:checked});
+    const quote=plain(item.evidenceQuote,400),supported=quote.length>=20&&plain(source.excerpt,6000).toLowerCase().includes(quote.toLowerCase());
+    ranked.push({...source,excerpt:undefined,snippets:undefined,summary:plain(item.summary,800),relation:supported&&['supports','partial','contradicts'].includes(item.relation)?item.relation:'related',relationReason:supported?plain(item.relationReason,600):'검색·서지 정보상 관련 자료이며, 주장을 뒷받침하거나 반박하는지는 원문 확인이 필요해요.',trust:checked&&['high','medium','low'].includes(item.trust)?item.trust:'unverified',trustReason:plain(item.trustReason,600),relevance,originalChecked:checked});
   }
   ranked.sort((a,b)=>b.relevance-a.relevance);
   const sources=ranked.slice(0,8),contrary=ranked.find(item=>item.relation==='contradicts');
