@@ -33,12 +33,24 @@ function topicOverlap(source,claims){
 }
 function parsed(response){try{return JSON.parse(response.text);}catch{throw new ApiError(502,'EVIDENCE_AI_FORMAT','AI 응답을 읽지 못했어요. 다시 검색해주세요.');}}
 async function academicSources(claims,fetcher){
-  const sources=[];
+  const sources=[],attempted=[];let successes=0,limited=false;
+  const deadline=Date.now()+40000;
   const queries=claims.slice(0,3).flatMap(c=>[c.queryEn,c.queryKo]);
   for(const query of queries){
-    const response=await fetcher('https://api.crossref.org/works?rows=2&select=DOI,title,publisher,published,type,abstract&query.bibliographic='+encodeURIComponent(query),{headers:{Accept:'application/json','User-Agent':'Mindly-Evidence/1.0'},redirect:'manual',signal:AbortSignal.timeout(12000)});
-    if(!response.ok)throw new ApiError(503,'EVIDENCE_ACADEMIC_UNAVAILABLE','무료 학술자료 검색이 혼잡해요. 잠시 후 다시 시도해주세요.');
-    const data=await response.json();
+    if(Date.now()>deadline-1000){limited=true;break;}
+    if(attempted.length)await new Promise(resolve=>setTimeout(resolve,550));
+    attempted.push(query);let data;
+    for(let attempt=0;attempt<2&&!data;attempt++){
+      try{
+        const response=await fetcher('https://api.crossref.org/works?rows=2&select=DOI,title,publisher,published,type,abstract&query.bibliographic='+encodeURIComponent(query),{headers:{Accept:'application/json','User-Agent':'Mindly-Evidence/1.0 (https://26st072-lang.github.io/mindly/)'},redirect:'manual',signal:AbortSignal.timeout(Math.max(1,Math.min(8000,deadline-Date.now())))});
+        if(response.ok){data=await response.json();successes++;break;}
+        const retry=[429,502,503,504].includes(response.status),delay=Math.min(3000,Math.max(1000,(Number(response.headers.get('Retry-After'))||1)*1000));
+        await response.body?.cancel();
+        if(!retry||attempt||Date.now()+delay>deadline){limited=true;break;}
+        await new Promise(resolve=>setTimeout(resolve,delay));
+      }catch{limited=true;if(Date.now()>deadline)break;}
+    }
+    if(!data){limited=true;continue;}
     for(const item of data.message?.items||[]){
       if(!item.DOI||!item.title?.[0])continue;
       const parts=item.published?.['date-parts']?.[0]||[];
@@ -46,7 +58,8 @@ async function academicSources(claims,fetcher){
       sources.push({url,title:plain(item.title[0],300),publisher:plain(item.publisher,160),publishedAt:publishedDate(parts.map((n,i)=>i?String(n).padStart(2,'0'):n).join('-')),type:'paper',excerpt:plain(item.abstract,2600),verification:'search_confirmed',notice:'Crossref의 서지 정보를 확인했으며 논문 원문은 검증하지 못했어요.'});
     }
   }
-  return {sources,queries};
+  if(!successes)throw new ApiError(503,'EVIDENCE_ACADEMIC_UNAVAILABLE','무료 학술자료 검색이 혼잡해요. 잠시 후 다시 시도해주세요.');
+  return {sources,queries:attempted,limited};
 }
 export async function findEvidence(env,input,onPhase=async()=>{},{generate,inspect=inspectEvidence,fetcher=fetch}={}){
   if(!env.GEMINI_API_KEY)throw new ApiError(503,'EVIDENCE_NOT_CONFIGURED','서버에 Gemini API 키가 아직 설정되지 않았어요. 직접 링크 첨부는 이용할 수 있어요.');
@@ -65,9 +78,9 @@ export async function findEvidence(env,input,onPhase=async()=>{},{generate,inspe
   const claims=(Array.isArray(analysis.claims)?analysis.claims:[]).slice(0,3).map(c=>({text:plain(c.text,400),queryKo:plain(c.queryKo,180),queryEn:plain(c.queryEn,180)})).filter(c=>c.text&&c.queryKo&&c.queryEn);
   if(!claims.length)throw new ApiError(422,'EVIDENCE_NO_CLAIMS','자료로 확인할 수 있는 주장이나 논점을 찾지 못했어요. 의견의 이유를 조금 더 구체적으로 적어주세요.');
   await onPhase('searching');
-  let catalog=[],searchSuggestions='',queries=[],provider='google';
+  let catalog=[],searchSuggestions='',queries=[],provider='google',warnings=[];
   if(input.provider==='academic'){
-    provider='crossref';const academic=await academicSources(claims,fetcher);catalog=academic.sources;queries=academic.queries;
+    provider='crossref';const academic=await academicSources(claims,fetcher);catalog=academic.sources;queries=academic.queries;if(academic.limited)warnings.push('일부 학술검색 연결이 지연되어 확인 가능한 자료만 표시해요.');
   }else{
     const grounded=await call(JSON.stringify({comment:input.content,context:input.context,claims}),{systemInstruction:guard+' Use Google Search for the Korean AND English queries and additional counter-evidence queries. Find actual original news articles, academic papers, government statistics, research institute reports and international organization sources. Prefer evidence directly addressing these claims over keyword matches. Consider authority, research design, recency appropriate to the claim, relevance and contrary findings. Include counter-evidence when found. Cite every source. Do not rely on uncited memory.',tools:[{googleSearch:{}}],temperature:0.1,maxOutputTokens:3500});
     const metadata=grounded.candidates?.[0]?.groundingMetadata;
@@ -87,7 +100,7 @@ export async function findEvidence(env,input,onPhase=async()=>{},{generate,inspe
     }
   }
   catalog=[...new Map(catalog.map(source=>[source.url,source])).values()].slice(0,12).map((source,i)=>({...source,id:String(i+1)}));
-  if(!catalog.length)return {claims,sources:[],provider,model,queries,searchSuggestions};
+  if(!catalog.length)return {claims,sources:[],provider,model,queries,searchSuggestions,warnings};
   await onPhase('reviewing');
   const review=parsed(await call(JSON.stringify({claims,catalog}),{systemInstruction:guard+' Review ONLY supplied catalog IDs. Evaluate exact population, exposure, outcome and claim scope. Distinguish supports (directly supports exact claim), partial (limited scope or caveats), contradicts (actual opposing finding about the SAME issue), related (no direct support). Unrelated material, different populations/topics and lack of evidence are NEVER contradictions. Omit irrelevant sources, score them below 40; return zero sources if none relevant. Include contrary findings only IF actually present; never manufacture an opposing view. For supports/partial/contradicts supply evidenceQuote: a literal 20-400 character quote from that source EXCERPT justifying the relation. Without a relevant excerpt use related, evidenceQuote="", and explain original content unverified. Search snippets and metadata are NOT original full texts. When excerpt is absent use trust=unverified; never infer study quality, causation or peer review from publisher reputation alone. Otherwise assess authority, recency, relevance and research limitations actually present. Explain trust and relation separately, summarize without exaggeration. Never supply URLs or guessed dates.',responseMimeType:'application/json',responseJsonSchema:reviewSchema,temperature:0.1,maxOutputTokens:7500}));
   const byId=new Map(catalog.map(source=>[source.id,source])),seen=new Set(),ranked=[];
@@ -102,5 +115,5 @@ export async function findEvidence(env,input,onPhase=async()=>{},{generate,inspe
   ranked.sort((a,b)=>b.relevance-a.relevance);
   const sources=ranked.slice(0,8),contrary=ranked.find(item=>item.relation==='contradicts');
   if(contrary&&!sources.includes(contrary))sources[sources.length-1]=contrary;
-  return {claims,sources,provider,model,queries,searchSuggestions};
+  return {claims,sources,provider,model,queries,searchSuggestions,warnings};
 }
