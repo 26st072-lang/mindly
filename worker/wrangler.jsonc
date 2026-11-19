@@ -13,8 +13,8 @@
     "AI_DAILY_LIMIT": "200",
     "EVIDENCE_GEMINI_MODEL": "gemini-2.5-flash",
     "EVIDENCE_GOOGLE_AVAILABLE": "false",
-    "EVIDENCE_USER_DAILY_LIMIT": "3",
-    "EVIDENCE_SITE_DAILY_LIMIT": "5"
+    "EVIDENCE_USER_DAILY_LIMIT": "5",
+    "EVIDENCE_SITE_DAILY_LIMIT": "20"
   },
   "d1_databases": [
     {

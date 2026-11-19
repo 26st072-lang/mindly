@@ -3,7 +3,7 @@ import {evidenceURL,inspectEvidence} from './evidence-metadata.js';
 import {findEvidence,evidenceModel,providerError} from './evidence-ai.js';
 
 export async function storeEvidence(env,user,source,stamp=Date.now()){
-  const data={...source,id:crypto.randomUUID()};delete data.excerpt;delete data.snippets;
+  const data={...source,id:crypto.randomUUID()};delete data.excerpt;delete data.snippets;delete data.searchSnippet;
   await env.DB.prepare('INSERT INTO evidence_sources(id,user_id,data,created_at) VALUES(?,?,?,?)').bind(data.id,user.uid,JSON.stringify(data),stamp).run();return data;
 }
 export async function resolveEvidence(env,user,ids,current=[]){
@@ -28,7 +28,7 @@ function jobValue(row){
 }
 export async function evidenceRoute({request,path,env,user,stamp,cors,respond,search=findEvidence,inspect=inspectEvidence}){
   if(!path.startsWith('/v1/evidence/'))return null;
-  if(path==='/v1/evidence/config'&&request.method==='GET')return respond({ready:Boolean(env.GEMINI_API_KEY),googleReady:Boolean(env.GEMINI_API_KEY)&&env.EVIDENCE_GOOGLE_AVAILABLE!=='false',model:evidenceModel(env),maxSources:8,provider:'google',academicFallback:'crossref',billing:'unbilled-project-required',dailyUserLimit:Math.min(10,Number(env.EVIDENCE_USER_DAILY_LIMIT)||3)});
+  if(path==='/v1/evidence/config'&&request.method==='GET')return respond({ready:Boolean(env.GEMINI_API_KEY),combinedReady:Boolean(env.GEMINI_API_KEY),googleReady:Boolean(env.GEMINI_API_KEY)&&env.EVIDENCE_GOOGLE_AVAILABLE!=='false',model:evidenceModel(env),maxSources:8,provider:'combined',academicFallback:'crossref',billing:'unbilled-project-required',dailyUserLimit:Math.min(10,Number(env.EVIDENCE_USER_DAILY_LIMIT)||3)});
   if(!user)throw new ApiError(401,'LOGIN_REQUIRED','로그인 후 근거를 첨부해주세요.');
   if(path.startsWith('/v1/evidence/jobs/')&&request.method==='GET'){
     const id=identifier(path.split('/').at(-1)),row=await env.DB.prepare('SELECT * FROM evidence_jobs WHERE id=? AND user_id=? AND expires_at>?').bind(id,user.uid,stamp).first();
@@ -47,10 +47,10 @@ export async function evidenceRoute({request,path,env,user,stamp,cors,respond,se
   if(path!=='/v1/evidence/search'||request.method!=='POST')throw new ApiError(404,'NOT_FOUND','요청한 기능을 찾을 수 없어요.');
   const body=await readJSON(request);
   if(body.consent!==true)throw new ApiError(400,'CONSENT_REQUIRED','작성한 내용의 Google AI 전송에 동의해주세요.');
-  const input={content:text(body.content,'댓글',5,1000),context:text(body.context||'','문맥',0,3000),provider:body.provider==='academic'?'academic':'google'};
-  const model=evidenceModel(env),key=await cacheKey({uid:user.uid,...input,model,version:2});
+  const input={content:text(body.content,'댓글',5,1000),context:text(body.context||'','문맥',0,3000),provider:['academic','combined'].includes(body.provider)?body.provider:'google'};
+  const model=evidenceModel(env),key=await cacheKey({uid:user.uid,...input,model,version:3});
   let previous=await env.DB.prepare('SELECT * FROM evidence_jobs WHERE user_id=? AND cache_key=?').bind(user.uid,key).first();
-  if(previous&&previous.expires_at>stamp&&previous.phase==='done')return respond(jobValue(previous));
+  if(previous&&previous.expires_at>stamp&&previous.phase==='done'&&JSON.parse(previous.result).sources?.length)return respond(jobValue(previous));
   if(previous&&!['done','error'].includes(previous.phase)&&stamp-previous.updated_at<180000)return respond(jobValue(previous),202);
   if(input.provider==='google'&&env.EVIDENCE_GOOGLE_AVAILABLE==='false')throw new ApiError(503,'EVIDENCE_GOOGLE_UNAVAILABLE','현재 연결된 Google 프로젝트에서 무료 Google 검색을 사용할 수 없어요. 무료 학술자료 검색 (Crossref)을 선택해주세요.');
   if(!env.GEMINI_API_KEY)throw new ApiError(503,'EVIDENCE_NOT_CONFIGURED','서버의 Gemini 연결을 준비 중이에요. 직접 링크 첨부를 이용해주세요.');
@@ -71,6 +71,7 @@ export async function evidenceRoute({request,path,env,user,stamp,cors,respond,se
       try{
         const result=await search(env,input,async phase=>{await env.DB.prepare('UPDATE evidence_jobs SET phase=?,updated_at=? WHERE id=?').bind(phase,Date.now(),id).run();send({phase,jobId:id});});
         const sources=[];for(const source of result.sources||[])sources.push(await storeEvidence(env,user,source));
+        if(!sources.length)await env.DB.prepare('UPDATE quotas SET count=MAX(count-1,0) WHERE key=?').bind('evidence-user:'+Math.floor(stamp/86400000)+':'+user.uid).run();
         const final={...result,sources,phase:'done',jobId:id,cached:false,searchedAt:new Date().toISOString()};
         await env.DB.prepare("UPDATE evidence_jobs SET phase='done',result=?,updated_at=? WHERE id=?").bind(JSON.stringify(final),Date.now(),id).run();send(final);
       }catch(error){

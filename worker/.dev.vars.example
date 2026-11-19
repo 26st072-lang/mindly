@@ -4,5 +4,5 @@
 GEMINI_API_KEY=""
 # Evidence Grounding accepts only free-search 2.5 models; never enable paid fallback.
 EVIDENCE_GEMINI_MODEL="gemini-2.5-flash"
-EVIDENCE_USER_DAILY_LIMIT="3"
-EVIDENCE_SITE_DAILY_LIMIT="5"
+EVIDENCE_USER_DAILY_LIMIT="5"
+EVIDENCE_SITE_DAILY_LIMIT="20"
