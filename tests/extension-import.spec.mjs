@@ -24,9 +24,10 @@ async function setup(page,{user=true}={}){
   });
   await page.goto('/',{waitUntil:'domcontentloaded'});await expect.poll(()=>page.evaluate(()=>sync.authReady)).toBe(true);return calls;
 }
-test('normal writing still opens only the existing image flow; imported text has its own screen',async({page})=>{
+test('normal writing offers topics and images; imported text has its own screen',async({page})=>{
   const calls=await setup(page);await page.evaluate(()=>startDebateWriting());
   await expect(page.locator('#debate-images')).toBeVisible();await expect(page.locator('#extension-text')).toHaveCount(0);
+  await expect(page.locator('#debate-topic')).toBeVisible();
   await bridge(page,'import',{clips,context:''});
   await expect(page.locator('#extension-text')).toHaveValue(clips[0].text);await expect(page.locator('#debate-images')).toHaveCount(0);
   expect(calls.some(call=>call.method==='POST')).toBe(false);
@@ -47,6 +48,8 @@ test('an image attachment and its draft survive importing and publishing a text-
   await page.locator('#extension-title').fill('학교 휴대전화 사용의 적절한 기준은 무엇일까요?');
   await page.getByRole('button',{name:'표현 확인 후 토론 게시하기'}).click();
   await expect(page.locator('.debate-detail h1')).toHaveText('학교 휴대전화 사용의 적절한 기준은 무엇일까요?');
+  await expect(page.locator('.debate-sources a')).toHaveAttribute('href',clips[0].url);await expect(page.locator('.debate-sources')).toContainText(clips[0].title);
+  expect(calls.find(call=>call.path==='/v1/debates'&&call.method==='POST').body.sources).toEqual([{title:clips[0].title,url:clips[0].url}]);
   await page.evaluate(()=>startDebateWriting());await expect(page.locator('.image-previews img')).toBeVisible();
   await expect(page.locator('#debate-title')).toHaveValue('사진에서 만든 토론의 제목입니다.');
   expect(calls.filter(call=>call.path==='/v1/analyze-text')).toHaveLength(1);

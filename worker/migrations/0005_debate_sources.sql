@@ -1,0 +1,1 @@
+ALTER TABLE debates ADD COLUMN sources_json TEXT NOT NULL DEFAULT '[]';

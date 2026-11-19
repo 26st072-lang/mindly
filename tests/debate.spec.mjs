@@ -13,7 +13,8 @@ async function setup(page,{reject=false,fail=false,restricted=false,locationFail
     if(url.pathname==='/v1/admin/settings')return send({mode:'free',available:{free:true,paid:true},models:{free:'gemini-3.5-flash-lite',paid:'openai/gpt-6-luna'}});
     if(url.pathname==='/v1/admin/check-ai')return restricted?send({code:'GEMINI_FREE_TIER_UNAVAILABLE',message:'Google이 이 프로젝트의 무료 Gemini API 사용을 허용하지 않고 있어요.'},403):send({ok:true,provider:'Gemini',model:'gemini-3.5-flash-lite'});
     if(url.pathname==='/v1/analyze'&&restricted)return send({code:'GEMINI_FREE_TIER_UNAVAILABLE',message:'Google이 이 프로젝트의 무료 Gemini API 사용을 허용하지 않고 있어요.'},403);
-    if(url.pathname==='/v1/analyze')return send({analysisId,readable:true,ocrText:'개인정보를 가린 댓글 내용입니다.',...debate});
+    if(url.pathname==='/v1/analyze-topic'&&fail)return send({code:'AI_UNAVAILABLE',message:'AI 분석을 완료하지 못했어요. 다시 시도해주세요.'},503);
+    if(url.pathname==='/v1/analyze'||url.pathname==='/v1/analyze-topic')return send({analysisId,readable:true,ocrText:'개인정보를 가린 댓글 내용입니다.',...debate});
     if(url.pathname==='/v1/me')return send({items:url.searchParams.get('tab')==='comments'?opinions.map(item=>({...item,title:debate.title})):[],hasMore:false});
     if(url.pathname==='/v1/debates'&&request.method()==='POST'){current={...current,...body,isMine:true};return send({debate:current},201);}
     if(url.pathname==='/v1/debates')return send({items:[current],hasMore:false});
@@ -41,9 +42,30 @@ test('screenshots produce an editable neutral draft and publishing is an explici
   const state=await setup(page);await page.evaluate(()=>startDebateWriting());
   await page.locator('#debate-images').setInputFiles('assets/mascot.png');
   await expect(page.locator('.image-previews img')).toBeVisible();await page.locator('#debate-consent').check();await page.getByRole('button',{name:'사진 읽고 토론 초안 만들기'}).click();
+  await page.getByRole('button',{name:'출처 추가',exact:true}).click();await page.locator('#debate-source-title-0').fill('사진의 원문 영상');await page.locator('#debate-source-url-0').fill('https://www.youtube.com/watch?v=source123');
   await expect(page.locator('#debate-title')).toHaveValue(debate.title);expect(state.calls.filter(call=>call.method==='POST'&&call.path==='/v1/debates')).toHaveLength(0);
   await page.locator('#debate-title').fill('학교 휴대전화 사용, 어떤 기준이 필요할까요?');await page.getByRole('button',{name:'표현 확인 후 토론 게시하기'}).click();
   await expect(page.locator('.debate-detail h1')).toHaveText('학교 휴대전화 사용, 어떤 기준이 필요할까요?');expect(state.calls.find(call=>call.path==='/v1/analyze').body.images).toHaveLength(1);
+  await expect(page.locator('.debate-sources a')).toHaveAttribute('href','https://www.youtube.com/watch?v=source123');
+});
+
+test('a topic alone creates an editable draft before explicit publishing on mobile',async({page})=>{
+  await page.setViewportSize({width:390,height:844});const state=await setup(page);await page.evaluate(()=>startDebateWriting());
+  await page.locator('#debate-topic').fill('학교에서 자유복을 허용해야 할까요?');await page.locator('#debate-topic-context').fill('비용과 활동 편의성을 함께 토론하고 싶어요.');
+  await page.getByRole('button',{name:'주제 분석하고 토론 초안 만들기'}).click();expect(state.calls.some(call=>call.path==='/v1/analyze-topic')).toBe(false);
+  await page.locator('#debate-topic-consent').check();await page.getByRole('button',{name:'주제 분석하고 토론 초안 만들기'}).click();
+  await expect(page.locator('#debate-title')).toHaveValue(debate.title);expect(state.calls.filter(call=>call.method==='POST'&&call.path==='/v1/debates')).toHaveLength(0);
+  const analyzed=state.calls.find(call=>call.path==='/v1/analyze-topic');expect(analyzed.body.topic).toBe('학교에서 자유복을 허용해야 할까요?');expect(analyzed.body.images).toBeUndefined();
+  await expect(page.locator('.ocr-result')).toHaveCount(0);await page.locator('#debate-title').fill('학교에서 자유복을 허용하는 것이 좋을까요?');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.getByRole('button',{name:'표현 확인 후 토론 게시하기'}).click();await expect(page.locator('.debate-detail h1')).toHaveText('학교에서 자유복을 허용하는 것이 좋을까요?');
+});
+
+test('topic analysis errors preserve the topic, explanation and source draft',async({page})=>{
+  const state=await setup(page,{fail:true});await page.evaluate(()=>startDebateWriting());const topic='학교에서 자유복을 허용해야 할까요?';await page.locator('#debate-topic').fill(topic);
+  await page.getByRole('button',{name:'출처 추가',exact:true}).click();await page.locator('#debate-source-title-0').fill('참고한 책');
+  await page.locator('#debate-topic-consent').check();await page.getByRole('button',{name:'주제 분석하고 토론 초안 만들기'}).click();
+  await expect(page.getByRole('alert')).toContainText('AI 분석을 완료하지 못했어요');await expect(page.locator('#debate-topic')).toHaveValue(topic);await expect(page.locator('#debate-source-title-0')).toHaveValue('참고한 책');expect(state.calls.some(call=>call.path==='/v1/debates'&&call.method==='POST')).toBe(false);
 });
 test('stance and reason are mandatory; moderation modal preserves draft and requires a manual edit and resubmit',async({page})=>{
   const state=await setup(page,{reject:true});await page.evaluate(id=>goto('debateDetail',{currentDebateId:id}),id);await expect(page.locator('#debate-opinion')).toBeVisible();
