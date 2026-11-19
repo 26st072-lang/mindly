@@ -12,7 +12,7 @@ test('topic creation needs login, consent and a bounded topic, but no image or e
   const h=topicHarness(),body={topic,consent:true};
   assert.equal((await h.request('/v1/analyze-topic',{method:'POST',user:null,body})).status,401);
   assert.equal((await h.request('/v1/analyze-topic',{method:'POST',body:{...body,consent:false}})).status,400);
-  for(const value of ['', '짧음', '가'.repeat(501)])assert.equal((await h.request('/v1/analyze-topic',{method:'POST',body:{...body,topic:value}})).status,400);
+  for(const value of ['', '가', '가'.repeat(501)])assert.equal((await h.request('/v1/analyze-topic',{method:'POST',body:{...body,topic:value}})).status,400);
   assert.equal((await h.request('/v1/analyze-topic',{method:'POST',body:{...body,context:'가'.repeat(1001)}})).status,400);
   assert.equal(h.calls.length,0);
   const result=await h.request('/v1/analyze-topic',{method:'POST',body:{...body,context:'학생의 활동성과 비용을 고려해주세요.'}});
@@ -20,6 +20,7 @@ test('topic creation needs login, consent and a bounded topic, but no image or e
   assert.equal(h.DB.sqlite.prepare('SELECT COUNT(*) n FROM debates').get().n,0);
   assert.ok(!JSON.stringify(h.DB.sqlite.prepare('SELECT * FROM analyses').get()).includes(topic));
   assert.equal((await h.request('/v1/config')).data.capabilities.topicAnalysis,true);
+  assert.equal((await h.request('/v1/analyze-topic',{method:'POST',body:{topic:'교복',consent:true}})).status,200);
 });
 
 test('a topic analysis binds publishing to its author and saves attribution across detail, list and retries',async()=>{

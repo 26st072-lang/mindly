@@ -114,7 +114,7 @@ export function createApp({ verifyUser = verifyFirebaseUser, ai = callAI, now = 
         if (path === '/v1/analyze-topic' && request.method === 'POST') {
           const body = await readJSON(request);
           if (body.consent !== true) throw new ApiError(400, 'CONSENT_REQUIRED', '입력한 주제의 AI 전송에 동의해주세요.');
-          const topic = text(body.topic, '토론 주제', 5, 500);
+          const topic = text(body.topic, '토론 주제', 2, 500);
           const extraContext = body.context === undefined ? '' : text(body.context, '추가 설명', 0, 1000);
           const analysis = await runMeteredAI(env, user, 'text', mode, stamp, async () => {
             const result = await ai(env, mode, 'analyzeTopic', {topic, context: extraContext});

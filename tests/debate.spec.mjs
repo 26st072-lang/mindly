@@ -58,7 +58,10 @@ test('a topic alone creates an editable draft before explicit publishing on mobi
   const analyzed=state.calls.find(call=>call.path==='/v1/analyze-topic');expect(analyzed.body.topic).toBe('학교에서 자유복을 허용해야 할까요?');expect(analyzed.body.images).toBeUndefined();
   await expect(page.locator('.ocr-result')).toHaveCount(0);await page.locator('#debate-title').fill('학교에서 자유복을 허용하는 것이 좋을까요?');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-  await page.getByRole('button',{name:'표현 확인 후 토론 게시하기'}).click();await expect(page.locator('.debate-detail h1')).toHaveText('학교에서 자유복을 허용하는 것이 좋을까요?');
+  let release;const publishing=new Promise(resolve=>{release=resolve;});
+  await page.route('https://worker.test/v1/debates',async route=>{if(route.request().method()==='POST')await publishing;await route.fallback();});
+  try{await page.getByRole('button',{name:'표현 확인 후 토론 게시하기'}).click();await expect(page.getByRole('button',{name:'주제 분석하고 토론 초안 만들기'})).toBeDisabled();await expect(page.getByRole('button',{name:'사진 읽고 토론 초안 만들기'})).toBeDisabled();}finally{release();}
+  await expect(page.locator('.debate-detail h1')).toHaveText('학교에서 자유복을 허용하는 것이 좋을까요?');
 });
 
 test('topic analysis errors preserve the topic, explanation and source draft',async({page})=>{
