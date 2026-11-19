@@ -11,6 +11,9 @@ test('both providers send the same polite-speech rule to moderation and the expr
     let prompt;
     const result=await callAI(env,mode,task,{content:informal,context:'교복 착용 토론'},async(_url,options)=>{const body=JSON.parse(options.body);prompt=mode==='free'?body.systemInstruction.parts[0].text:body.messages[0].content;return Response.json(mode==='free'?{candidates:[{content:{parts:[{text:JSON.stringify(feedback)}]}}]}:{choices:[{message:{content:JSON.stringify(feedback)}}]});});
     assert.ok(prompt.includes('욕설이나 인신공격이 없어도 allowed=false'));assert.ok(prompt.includes('인용문 속 반말만으로 거절하지'));assert.equal(result.allowed,false);assert.deepEqual(result.flags,['반말']);assert.equal(result.suggestion,polite);
+    for(const example of ['뭐가 문제인지 모르겠어요','그건 아닌 것 같아요','하겠습니까','이에요','이죠'])assert.ok(prompt.includes(example),example);
+    assert.ok(prompt.includes('해요체와 격식체인 하십시오체는 모두 정상적인 존댓말'));
+    assert.ok(prompt.includes('존댓말인지 애매한 문장을 반말이라고 단정하지'));
   }
 });
 test('non-abusive informal comments, replies and edits wait for a manual polite revision',async()=>{
