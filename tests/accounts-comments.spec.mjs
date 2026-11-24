@@ -13,6 +13,84 @@ async function openComments(page){
   });
 }
 
+async function expectLanguageWarning(page,submit){
+  const warning=page.waitForEvent('dialog');
+  const sending=submit();
+  const dialog=await warning;
+  expect(dialog.type()).toBe('alert');
+  expect(dialog.message()).toContain('욕설이나 비방 표현이 포함되어 있어요.');
+  expect(dialog.message()).toContain('마인들리에서는 다정한 말들로 대화해주세요.');
+  await dialog.accept();await sending;
+}
+
+test('lounge blocks clear insults with a warning, keeps the exact draft and never writes or rewrites it',async({page})=>{
+  await openComments(page);
+  const input=page.getByRole('textbox',{name:'댓글 내용',exact:true});
+  for(const content of ['시발새끼야','못생겼어','죽어','바보','미친년','너 바보야','너 진짜 못생겼어','너는 죽어라','개새끼','씨 발','  시발새끼야  ']){
+    await input.fill(content);
+    await expectLanguageWarning(page,()=>input.press('Enter'));
+    await expect(input).toHaveValue(content);await expect(input).toBeFocused();
+    expect(await page.evaluate(()=>ui.commentDrafts.p0)).toBe(content);
+    expect(await page.evaluate(()=>window.__test.writes.length)).toBe(0);
+    await expect(page.locator('#activity-indicator')).toBeHidden();
+  }
+  await input.fill('네 마음이 조금은 가벼워졌으면 좋겠어.');
+  await page.getByRole('button',{name:'댓글 보내기',exact:true}).click();
+  await expect(input).toHaveValue('');
+  expect(await page.evaluate(()=>window.__test.records.posts[0].comments.at(-1).content)).toBe('네 마음이 조금은 가벼워졌으면 좋겠어.');
+});
+
+test('lounge allows informal disagreement, ordinary complaints and harmless words containing similar syllables',async({page})=>{
+  await openComments(page);
+  const warnings=[];page.on('dialog',async dialog=>{warnings.push(dialog.message());await dialog.dismiss();});
+  for(const content of [
+    '그건 아닌 것 같아. 난 좀 다르게 생각해.',
+    '아 진짜 짜증나고 힘들다 ㅋㅋ',
+    '미친 듯이 열심히 했는데 결과가 아쉬워.',
+    '새끼 고양이를 보니 마음이 풀렸어.',
+    '문제의 시발점을 같이 찾아보자.',
+    '이번 기차의 시발역은 서울이야.',
+    '죽어도 포기하지 마. 네 편이야.',
+    '죽어가는 식물을 살려냈어.',
+    '내가 바보 같았어. 그래도 괜찮아.',
+    '나는 못생겼어도 내가 좋아.',
+    '너 바보 아니야. 충분히 잘하고 있어.',
+    '내 생각에는 그 행동은 잘못됐어.',
+    '죽어버리고 싶을 만큼 힘들었지만 오늘은 조금 나아졌어.'
+  ]){
+    await page.locator('#comment-input').fill(content);
+    await page.getByRole('button',{name:'댓글 보내기',exact:true}).click();
+    expect(warnings).toEqual([]);
+    expect(await page.evaluate(()=>window.__test.records.posts[0].comments.at(-1).content)).toBe(content);
+    await expect(page.locator('#comment-input')).toHaveValue('');
+  }
+});
+
+test('lounge replies and edits use the same loose check and accept a manual correction',async({page})=>{
+  await openComments(page);
+  await page.getByRole('button',{name:'다른 친구 댓글에 답글'}).click();
+  await page.locator('#comment-input').fill('죽어');
+  await expectLanguageWarning(page,()=>page.getByRole('button',{name:'답글 보내기',exact:true}).click());
+  await expect(page.locator('#comment-input')).toHaveValue('죽어');
+  expect(await page.evaluate(()=>ui.concernReply.commentId)).toBe('other');
+  expect(await page.evaluate(()=>window.__test.writes.length)).toBe(0);
+  await page.locator('#comment-input').fill('내 생각은 다르지만 네 이야기도 들어볼게.');
+  await page.getByRole('button',{name:'답글 보내기',exact:true}).click();
+  expect(await page.evaluate(()=>window.__test.records.posts[0].comments.at(-1).parentId)).toBe('other');
+  const original=page.locator('[data-key="comment-p0-mine"]');
+  await original.getByRole('button',{name:'내 댓글 수정',exact:true}).click();
+  const editor=page.getByRole('textbox',{name:'댓글 수정 내용'});
+  await editor.fill('미친년');
+  await expectLanguageWarning(page,()=>page.getByRole('button',{name:'수정 저장',exact:true}).click());
+  await expect(editor).toHaveValue('미친년');await expect(editor).toBeFocused();
+  expect(await page.evaluate(()=>window.__test.records.posts[0].comments[0].content)).toBe('내가 쓴 댓글');
+  expect(await page.evaluate(()=>window.__test.writes.length)).toBe(1);
+  await editor.fill('앞으로는 네 마음도 편해지길 바라.');
+  await page.getByRole('button',{name:'수정 저장',exact:true}).click();
+  await expect(original).toContainText('앞으로는 네 마음도 편해지길 바라.');
+  await expect(original.locator('textarea')).toHaveCount(0);
+});
+
 test('comment authors can edit their own comment; post ownership does not grant editing others',async({page})=>{
   await openComments(page);
   await expect(page.getByRole('button',{name:'내 댓글 수정',exact:true})).toHaveCount(1);

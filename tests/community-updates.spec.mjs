@@ -71,8 +71,10 @@ test('comments fold after five visible lines, expand without altering content, a
 
 test('home search shows concern and debate tabs with independent result sets',async({page})=>{
   await setup(page);await page.locator('#search-input').fill('학교');await page.locator('#search-input').press('Enter');
-  await expect(page.getByRole('tab',{name:/고민상담/})).toHaveAttribute('aria-selected','true');await expect(page.locator('#search-panel .post-card')).toHaveCount(8);
-  await page.getByRole('tab',{name:/익명 토론/}).click();await expect(page.locator('#search-panel .debate-card')).toHaveCount(1);await expect(page.locator('#search-panel')).toContainText('휴대전화');
+  await expect(page.getByRole('tab').first()).toHaveAttribute('id','search-tab-debate');
+  await expect(page.getByRole('tab',{name:/익명 토론/})).toHaveAttribute('aria-selected','true');await expect(page.locator('#search-panel .debate-card')).toHaveCount(1);await expect(page.locator('#search-panel')).toContainText('휴대전화');
+  await page.getByRole('tab',{name:/고민상담/}).click();await expect(page.locator('#search-panel .post-card')).toHaveCount(8);
+  await page.getByRole('tab',{name:/익명 토론/}).click();
   await page.locator('#search-input').fill('찾을수없는검색어');await page.locator('#search-input').press('Enter');await expect(page.locator('#search-panel')).toContainText('검색 결과가 없어요');
   await page.getByRole('tab',{name:/고민상담/}).click();await expect(page.locator('#search-panel')).toContainText('검색 결과가 없어요');
 });

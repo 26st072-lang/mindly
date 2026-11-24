@@ -2,6 +2,8 @@
 .account-signup-link{min-height:43px;border:1px solid var(--control-border);border-radius:11px;background:var(--surface-alt);color:var(--ink);font-size:13px;font-weight:600}
 
 .account-id-note{font-size:10px;line-height:1.7;color:var(--ink-soft);text-align:center;margin:10px 0 0}
+.operator-contact{font-size:12px;line-height:1.8;color:var(--ink-soft);text-align:center;margin:24px 0 0}
+.account-id-note a,.operator-contact a{display:inline-block;color:var(--primary-strong);text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere;max-width:100%}
 .account-modal-open{overflow:hidden}.account-overlay{position:fixed;inset:0;z-index:90;padding:max(20px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));display:flex;align-items:center;justify-content:center;background:var(--overlay);backdrop-filter:blur(9px);overscroll-behavior:contain}
 .account-dialog{display:flex;flex-direction:column;width:100%;max-width:520px;max-height:calc(100dvh - 40px);overflow:hidden;border:1px solid var(--line);border-radius:25px;background:var(--surface);color:var(--ink);box-shadow:0 24px 90px #07172f30;animation:account-arrive .18s ease-out}
 .account-dialog:focus{outline:none}.account-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:24px 26px 19px;flex:none;border-bottom:1px solid var(--line)}

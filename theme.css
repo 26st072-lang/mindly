@@ -108,8 +108,8 @@ button.is-pending .button-spinner{position:absolute;left:calc(50% - 9px);top:cal
   .lounge .card-foot{gap:18px;min-height:46px;padding-top:12px}
   .lounge .heart-btn,.lounge .comment-cnt{font-size:12px}
   .lounge .epilogue-link{font-size:11px}
-  .app-shell:has(.lounge) .topbar-title{font-size:15px}
-  .app-shell:has(.lounge) .topbar-title span{font-size:11px}
+  .topbar-title{font-size:15px}
+  .topbar-title span{font-size:11px}
   .app-shell:has(.lounge) .search-box{max-width:460px;height:44px}
   .app-shell:has(.lounge) .search-box input{font-size:14px}
 }

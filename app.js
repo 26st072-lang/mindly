@@ -101,7 +101,7 @@ const pendingActions = new Set();
 /* ============ UI 상태 ============ */
 let ui = {
   route:'loading', mainTab:'home', ageSubTab:'all', sort:'recent', currentPostId:null, currentEpilogueId:null,
-  authMode:'login', searchQuery:'', searchTerm:'', searchTab:'concern', expandedComments:new Set(), menuOpen:false, archiveTab:'posts', editingPostId:null, editingCommentId:null,
+  authMode:'login', searchQuery:'', searchTerm:'', searchTab:'debate', expandedComments:new Set(), menuOpen:false, archiveTab:'posts', editingPostId:null, editingCommentId:null,
   signupDraft:{ username:'', pw:'', nickname:'', avatar:0, ageGroup:'middle' },
   loginDraft:{ identifier:'', pw:'' }, authError:'',
   accountModal:null,signupError:'',concernReply:null,
@@ -273,6 +273,7 @@ async function submitCommentImpl(postId){
   if(!requireLogin())return;
   const text=(ui.commentDrafts[postId]||document.getElementById('comment-input')?.value||'').trim();
   if(!text||text.length>1000){toast('댓글을 1~1000자로 입력해주세요.');return;}
+  if(!checkConcernCommentLanguage(text,'comment-input'))return;
   const actor=session.userId,generation=authGeneration,parentId=ui.concernReply?.postId===postId?ui.concernReply.commentId:null;
   const evidenceDescriptor={kind:'concern',id:postId,parentId},evidence=evidenceBibliography(evidenceDescriptor),attachedIds=evidenceIds(evidenceDescriptor);
   const comment={id:uid(),authorId:actor,authorNickname:session.nickname,authorAvatar:session.avatar,content:text,createdAt:Date.now(),parentId,evidence};
@@ -338,6 +339,7 @@ async function saveEditComment(postId, commentId){
   if(!text||text.length>1000){toast('댓글을 1~1000자로 입력해주세요');return;}
   const evidenceDescriptor={kind:'concern-edit',id:postId,parentId:commentId},evidence=evidenceBibliography(evidenceDescriptor),originalEvidence=ui.commentEditEvidenceOriginal;
   if(text===original&&JSON.stringify(evidence)===originalEvidence){cancelEditComment();return;}
+  if(!checkConcernCommentLanguage(text,'edit-comment-'+commentId))return;
   const actor=session.userId,generation=authGeneration,isAdmin=session.isAdmin;
   return runAction('edit-comment-'+commentId,async()=>{
     try{
@@ -563,6 +565,7 @@ function renderMyPage(){
       </div>
       ${session.isAdmin? `<button class="drawer-item" style="background:var(--surface); box-shadow:var(--shadow); border-radius:14px; padding:14px; margin-bottom:8px;" onclick="goto('adminPanel')">${ICONS.shield} 관리자 페이지 바로가기</button>`:''}
       <button class="drawer-item" style="background:var(--surface); box-shadow:var(--shadow); border-radius:14px; padding:14px;" onclick="goto('archive')">${ICONS.box} 나의 보관함 바로가기</button>
+      <p class="operator-contact">마인들리 운영자 이메일<br><a href="mailto:kickinmindly@gmail.com">kickinmindly@gmail.com</a></p>
     </div>`;
   }
   return renderAuth();

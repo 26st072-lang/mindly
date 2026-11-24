@@ -6,6 +6,23 @@ function threadedComments(items){
   const visit=root=>{const stack=[{item:root,depth:0}];while(stack.length){const entry=stack.pop();if(seen.has(entry.item.id))continue;seen.add(entry.item.id);result.push({...entry,parent:byId.get(entry.item.parentId)||null});const replies=children.get(entry.item.id)||[];for(let i=replies.length-1;i>=0;i--)stack.push({item:replies[i],depth:Math.min(3,entry.depth+1)});}};
   roots.forEach(visit);items.forEach(item=>{if(!seen.has(item.id))visit(item);});return result;
 }
+// Keep lounge checks narrow: ordinary complaints, informal speech and ambiguous
+// slang are allowed. Match clear swearing and standalone/addressed insults only.
+const CONCERN_COMMENT_SWEARS=/(?:[시씨][\s.!·…]*[발빨](?!점|역|열차)|씨[\s.!·…]*팔|(?:개|씹)[\s.!·…]*새[\s.!·…]*끼|새[\s.!·…]*끼[\s.!·…]*야|병[\s.!·…]*신|미[\s.!·…]*친[\s.!·…]*[년놈]|좆|지랄)/u;
+const CONCERN_DIRECT_INSULT='(?:바보(?:야|냐|네|예요|에요)?|못생겼(?:어(?:요)?|다|네(?:요)?|습니다)|못생긴\\s*(?:놈|년|새끼)|죽어(?:라|요|버려(?:라)?)?|닥쳐(?:라|요)?|꺼져(?:라|요)?)';
+const CONCERN_INSULT_INTENSIFIERS='(?:(?:진짜|정말|참|완전|너무|아주|솔직히)\\s*){0,3}';
+const CONCERN_STANDALONE_INSULT=new RegExp('^\\s*'+CONCERN_INSULT_INTENSIFIERS+CONCERN_DIRECT_INSULT+'[\\s~…ㅋㅎㅠㅜ]*$','u');
+const CONCERN_ADDRESSED_INSULT=new RegExp('(?:^|[\\s,])(?:너(?:는|도|희(?:는|도)?)?|넌|니(?:가|들)?|네가|당신(?:은|도)?|[^\\s,]{1,20}님(?:은|도)?)\\s*'+CONCERN_INSULT_INTENSIFIERS+CONCERN_DIRECT_INSULT+'(?!\\s*(?:아니|아냐|아닙))(?=$|[\\s~…ㅋㅎㅠㅜ])','u');
+function hasConcernCommentAbuse(content){
+  const text=String(content).normalize('NFKC').replace(/[\u200B-\u200D\u2060\uFEFF]/g,'');
+  return CONCERN_COMMENT_SWEARS.test(text)||text.split(/[.!?。！？\n,]+/u).some(sentence=>CONCERN_STANDALONE_INSULT.test(sentence)||CONCERN_ADDRESSED_INSULT.test(sentence));
+}
+function checkConcernCommentLanguage(content,inputId){
+  if(!hasConcernCommentAbuse(content))return true;
+  alert('욕설이나 비방 표현이 포함되어 있어요.\n마인들리에서는 다정한 말들로 대화해주세요.\n내용을 직접 수정한 뒤 다시 보내주세요.');
+  document.getElementById(inputId)?.focus();
+  return false;
+}
 function commentArgs(...values){return values.map(value=>escapeHtml(JSON.stringify(value))).join(',');}
 function renderCommentContent(content,key){
   const expanded=ui.expandedComments.has(key),id='comment-text-'+key;

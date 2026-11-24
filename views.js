@@ -65,7 +65,7 @@ function renderLanding(){
 function doSearch(){
   const query=ui.searchQuery.trim();
   if(query.length>100){toast('검색어는 100자까지 입력해주세요.');return;}
-  const searchTab=ui.route==='search'?ui.searchTab:ui.route.startsWith('debate')?'debate':'concern';
+  const searchTab=ui.route==='search'?ui.searchTab:ui.route==='main'&&ui.mainTab!=='home'?'concern':'debate';
   goto('search',{searchTerm:query,searchTab});
 }
 function selectSearchTab(tab){if(!['concern','debate'].includes(tab))return;ui.searchTab=tab;render();}
@@ -92,7 +92,7 @@ function renderSearchResults(){
   let content;
   if(ui.searchTab==='concern')content=syncNotice('posts')+(concerns.length?`<div class="post-grid">${concerns.map(post=>postCardHTML(post)).join('')}</div>`:concernReady?empty:collectionPlaceholder('posts'));
   else content=(!workerEndpoint()?debateMessage('익명 토론 공간을 준비하고 있어요.'):state.error?`<div class="sync-notice" role="status"><span>${escapeHtml(state.error)}</span><button onclick="loadDebateSearch()">다시 불러오기</button></div>`:'')+(state.items.length?`<div class="post-grid">${state.items.map(renderDebateCard).join('')}</div>`:state.loading&&workerEndpoint()?'<p class="loading-copy" role="status"><span class="spinner" aria-hidden="true"></span>토론을 검색하고 있어요.</p>':state.loaded?empty:'')+(state.hasMore?`<button class="btn-ghost load-more" onclick="loadDebateSearch(true)" ${state.loading?'disabled':''}>토론 검색 결과 더 보기</button>`:'');
-  return `<section class="search-intro"><span class="eyebrow">이야기 검색</span><h1>${ui.searchTerm?'“'+escapeHtml(ui.searchTerm)+'” 검색 결과':'전체 이야기'}</h1><p>고민과 토론을 탭으로 나눠 확인해보세요.</p></section><div class="search-tabs" role="tablist" aria-label="검색 결과 종류">${[['concern','고민상담',concernReady?String(concerns.length):'확인 중'],['debate','익명 토론',state.loaded?String(state.items.length)+(state.hasMore?'+':''):'확인 중']].map(([value,label,count])=>`<button id="search-tab-${value}" class="tab-main ${ui.searchTab===value?'active':''}" role="tab" aria-selected="${ui.searchTab===value}" aria-controls="search-panel" tabindex="${ui.searchTab===value?0:-1}" onclick="selectSearchTab('${value}')">${label} <span>${count}</span></button>`).join('')}</div><section id="search-panel" role="tabpanel" aria-labelledby="search-tab-${ui.searchTab}">${content}</section>`;
+  return `<section class="search-intro"><span class="eyebrow">이야기 검색</span><h1>${ui.searchTerm?'“'+escapeHtml(ui.searchTerm)+'” 검색 결과':'전체 이야기'}</h1><p>토론과 고민을 탭으로 나눠 확인해보세요.</p></section><div class="search-tabs" role="tablist" aria-label="검색 결과 종류">${[['debate','익명 토론',state.loaded?String(state.items.length)+(state.hasMore?'+':''):'확인 중'],['concern','고민상담',concernReady?String(concerns.length):'확인 중']].map(([value,label,count])=>`<button id="search-tab-${value}" class="tab-main ${ui.searchTab===value?'active':''}" role="tab" aria-selected="${ui.searchTab===value}" aria-controls="search-panel" tabindex="${ui.searchTab===value?0:-1}" onclick="selectSearchTab('${value}')">${label} <span>${count}</span></button>`).join('')}</div><section id="search-panel" role="tabpanel" aria-labelledby="search-tab-${ui.searchTab}">${content}</section>`;
 }
 function renderDrawer(){
   return `<div class="overlay" onclick="if(event.target===this)closeMenu();"><section class="drawer" id="menu-drawer" role="dialog" aria-modal="true" aria-label="마인들리 메뉴"><div class="drawer-head">${brandHTML()}<button class="icon-btn" onclick="closeMenu()" aria-label="메뉴 닫기">✕</button></div>${navigationHTML('drawer')}<button class="nav-item" onclick="goto('mypage')">${ICONS.user}${session.userId?'내 프로필':'로그인 / 회원가입'}</button><div class="drawer-companion">${mascotScene('small')}</div></section></div>`;
@@ -156,7 +156,7 @@ function renderAuth(){
           <button type="submit" data-action="login" class="btn-primary account-submit">로그인 ${ARROW_ICON}</button>
         </form>
         <div class="account-links"><button id="open-signup" class="account-signup-link" type="button" data-disable-while="login" onclick="openAccountModal()">회원가입</button></div>
-        <p class="account-id-note">아이디나 비밀번호가 기억나지 않으면 관리자에게 문의해주세요.</p>
+        <p class="account-id-note">아이디나 비밀번호가 기억나지 않으면 관리자에게 문의해주세요.<br><a href="mailto:kickinmindly@gmail.com">kickinmindly@gmail.com</a></p>
       </section>
     </div>
   </div>`;
