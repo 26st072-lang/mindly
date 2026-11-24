@@ -273,7 +273,7 @@ async function submitCommentImpl(postId){
   if(!requireLogin())return;
   const text=(ui.commentDrafts[postId]||document.getElementById('comment-input')?.value||'').trim();
   if(!text||text.length>1000){toast('댓글을 1~1000자로 입력해주세요.');return;}
-  if(!checkConcernCommentLanguage(text,'comment-input'))return;
+  if(!checkConcernCommentLanguage(text,'comment-input',postId))return;
   const actor=session.userId,generation=authGeneration,parentId=ui.concernReply?.postId===postId?ui.concernReply.commentId:null;
   const evidenceDescriptor={kind:'concern',id:postId,parentId},evidence=evidenceBibliography(evidenceDescriptor),attachedIds=evidenceIds(evidenceDescriptor);
   const comment={id:uid(),authorId:actor,authorNickname:session.nickname,authorAvatar:session.avatar,content:text,createdAt:Date.now(),parentId,evidence};
@@ -339,7 +339,7 @@ async function saveEditComment(postId, commentId){
   if(!text||text.length>1000){toast('댓글을 1~1000자로 입력해주세요');return;}
   const evidenceDescriptor={kind:'concern-edit',id:postId,parentId:commentId},evidence=evidenceBibliography(evidenceDescriptor),originalEvidence=ui.commentEditEvidenceOriginal;
   if(text===original&&JSON.stringify(evidence)===originalEvidence){cancelEditComment();return;}
-  if(!checkConcernCommentLanguage(text,'edit-comment-'+commentId))return;
+  if(!checkConcernCommentLanguage(text,'edit-comment-'+commentId,postId))return;
   const actor=session.userId,generation=authGeneration,isAdmin=session.isAdmin;
   return runAction('edit-comment-'+commentId,async()=>{
     try{

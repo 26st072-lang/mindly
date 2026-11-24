@@ -18,13 +18,42 @@ async function setup(page){
   await page.goto('/');await page.locator('.home-welcome').waitFor();return {calls,opinions};
 }
 async function manual(page){await page.getByRole('button',{name:'직접 링크 추가'}).click();await page.locator('#evidence-url').fill(source.url);await page.getByRole('button',{name:'정보 확인',exact:true}).click();await expect(page.locator('.evidence-preview')).toContainText(source.title);await page.getByRole('button',{name:'이 근거 첨부',exact:true}).click();}
-test('concern comments preserve drafts through link preview, persist evidence and allow attachment-only edits',async({page})=>{
-  await setup(page);await page.evaluate(()=>goto('postDetail',{currentPostId:'p0'}));const input=page.locator('#comment-input');await input.fill('자료를 함께 확인하며 대화하고 싶어요.');
+test('lounge comment, reply and edit composers have no attachment controls and keep existing sources',async({page})=>{
+  await setup(page);
+  const {id,url,title,publisher,publishedAt,type}=source,legacy={id,url,title,publisher,publishedAt,type};
+  await page.evaluate(evidence=>{
+    window.__test.records.posts[0].comments=[{id:'legacy',authorId:'reader',authorNickname:'포근한 공룡',authorAvatar:0,content:'전에 남긴 댓글입니다.',createdAt:Date.now(),evidence:[evidence]}];
+    window.__test.emit('posts');goto('postDetail',{currentPostId:'p0'});
+  },legacy);
+  const row=page.locator('[data-key="comment-p0-legacy"]'),input=page.locator('#comment-input');
+  await expect(page.getByRole('button',{name:'📎 근거 첨부',exact:true})).toHaveCount(0);
+  await expect(page.locator('.evidence-composer')).toHaveCount(0);
+  await input.fill('마음이 조금 편해졌으면 좋겠어.');
+  await page.getByRole('button',{name:'포근한 공룡 댓글에 답글'}).click();
+  await expect(input).toHaveValue('마음이 조금 편해졌으면 좋겠어.');
+  await expect(page.locator('.evidence-composer')).toHaveCount(0);
+  await page.getByRole('button',{name:'답글 취소',exact:true}).click();
+  await row.getByRole('button',{name:'내 댓글 수정',exact:true}).click();
+  await expect(page.locator('.evidence-composer')).toHaveCount(0);
+  await page.getByRole('textbox',{name:'댓글 수정 내용'}).fill('수정한 댓글도 다정하게 남겨요.');
+  await row.getByRole('button',{name:'수정 저장',exact:true}).click();
+  await row.locator('.comment-evidence summary').click();
+  await expect(row.getByRole('link',{name:/청소년 학습/})).toHaveAttribute('href',source.url);
+  expect(await page.evaluate(()=>window.__test.records.posts[0].comments[0].evidence)).toEqual([legacy]);
+});
+
+test('debate comments preserve drafts through manual link preview and persist evidence',async({page})=>{
+  const state=await setup(page);await page.evaluate(id=>goto('debateDetail',{currentDebateId:id}),debateId);
+  const input=page.locator('#debate-opinion');await input.fill('자료를 함께 확인하며 대화하고 싶어요.');
+  await page.locator('.opinion-form').getByRole('radio',{name:/^찬성/}).check();
   await page.getByRole('button',{name:'📎 근거 첨부',exact:true}).click();await manual(page);
   await expect(input).toHaveValue('자료를 함께 확인하며 대화하고 싶어요.');await expect(page.locator('.evidence-chips')).toContainText(source.title);
-  await page.getByRole('button',{name:'댓글 보내기',exact:true}).click();const row=page.locator('.comment-item').last();await expect(row.locator('.comment-evidence')).toBeVisible();await row.locator('.comment-evidence summary').click();await expect(row.getByRole('link',{name:/청소년 학습/})).toHaveAttribute('href',source.url);
-  const saved=await page.evaluate(()=>window.__test.records.posts[0].comments.at(-1));expect(saved.evidence[0].publisher).toBe(source.publisher);expect(saved.evidence[0].trust).toBeUndefined();
-  await row.getByRole('button',{name:'내 댓글 수정',exact:true}).click();await row.getByRole('button',{name:/첨부 삭제/}).click();await row.getByRole('button',{name:'수정 저장',exact:true}).click();await expect(row.locator('.comment-evidence')).toHaveCount(0);expect(await page.evaluate(()=>window.__test.records.posts[0].comments.at(-1).evidence)).toEqual([]);
+  await page.getByRole('button',{name:'입장과 의견 제출',exact:true}).click();
+  await expect.poll(()=>state.opinions.length).toBe(2);
+  const row=page.locator(`[data-key="opinion-${state.opinions.at(-1).id}"]`);
+  await row.locator('.comment-evidence summary').click();
+  await expect(row.getByRole('link',{name:/청소년 학습/})).toHaveAttribute('href',source.url);
+  const posted=state.calls.find(call=>call.path.endsWith('/opinions')&&call.method==='POST');expect(posted.body.evidenceIds).toEqual([source.id]);
 });
 test('AI evidence supports multiple selections and counter-evidence in an inline reply without clearing the root draft',async({page})=>{
   const state=await setup(page);await page.evaluate(id=>goto('debateDetail',{currentDebateId:id}),debateId);await page.locator('#debate-opinion').fill('일반 댓글 초안은 그대로 유지되어야 합니다.');
@@ -41,22 +70,22 @@ test('AI evidence supports multiple selections and counter-evidence in an inline
 });
 test('quota errors preserve writing and attachments; modal is keyboard accessible and respects night colors',async({page})=>{
   await setup(page);await page.route('https://worker.test/v1/evidence/search',route=>route.fulfill({status:429,json:{code:'EVIDENCE_API_QUOTA',message:'무료 사용량을 초과했어요. 직접 링크를 이용해주세요.'}}));
-  await page.evaluate(()=>goto('postDetail',{currentPostId:'p0'}));await page.locator('#comment-input').fill('검색에 실패해도 이 글은 남아 있어야 합니다.');await page.getByRole('button',{name:'📎 근거 첨부',exact:true}).click();await page.getByRole('button',{name:'AI로 근거 찾기'}).click();await page.locator('#evidence-consent').check();await page.getByRole('button',{name:'무료 통합 검색'}).click();await expect(page.getByRole('alert')).toContainText('무료 사용량');
+  await page.evaluate(id=>goto('debateDetail',{currentDebateId:id}),debateId);await page.locator('#debate-opinion').fill('검색에 실패해도 이 글은 남아 있어야 합니다.');await page.getByRole('button',{name:'📎 근거 첨부',exact:true}).click();await page.getByRole('button',{name:'AI로 근거 찾기'}).click();await page.locator('#evidence-consent').check();await page.getByRole('button',{name:'무료 통합 검색'}).click();await expect(page.getByRole('alert')).toContainText('무료 사용량');
   await page.evaluate(()=>{document.documentElement.dataset.theme='night';});const color=await page.locator('#evidence-dialog').evaluate(el=>getComputedStyle(el).backgroundColor);expect(color).toBe('rgb(34, 50, 75)');
-  await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0);await expect(page.locator('#comment-input')).toHaveValue('검색에 실패해도 이 글은 남아 있어야 합니다.');
+  await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0);await expect(page.locator('#debate-opinion')).toHaveValue('검색에 실패해도 이 글은 남아 있어야 합니다.');
   await expect(page.getByRole('button',{name:'📎 근거 첨부',exact:true})).toBeFocused();
   await page.getByRole('button',{name:'📎 근거 첨부',exact:true}).click();await manual(page);await expect(page.locator('.evidence-chips li')).toHaveCount(1);
 });
 test('Google restrictions never disable free combined search and academic-only search remains available',async({page})=>{
   const state=await setup(page);await page.route('https://worker.test/v1/evidence/config',route=>route.fulfill({json:{ready:true,googleReady:false}}));
-  await page.evaluate(()=>goto('postDetail',{currentPostId:'p0'}));await page.locator('#comment-input').fill('학습 집중력에 관한 실제 연구 자료를 함께 살펴보고 싶어요.');await page.getByRole('button',{name:'📎 근거 첨부',exact:true}).click();await page.getByRole('button',{name:'AI로 근거 찾기'}).click();
+  await page.evaluate(id=>goto('debateDetail',{currentDebateId:id}),debateId);await page.locator('#debate-opinion').fill('학습 집중력에 관한 실제 연구 자료를 함께 살펴보고 싶어요.');await page.getByRole('button',{name:'📎 근거 첨부',exact:true}).click();await page.getByRole('button',{name:'AI로 근거 찾기'}).click();
   await expect(page.getByRole('button',{name:'무료 통합 검색'})).toBeEnabled();await expect(page.getByRole('button',{name:'Google 검색으로 근거 찾기'})).toHaveCount(0);
   await page.locator('#evidence-consent').check();await page.getByRole('button',{name:'무료 학술자료 검색 (Crossref)',exact:true}).click();await expect(page.locator('.evidence-result')).toHaveCount(2);expect(state.calls.find(c=>c.path==='/v1/evidence/search').body.provider).toBe('academic');
 });
 test('empty academic results can be expanded to news without losing the draft',async({page})=>{
   await setup(page);const providers=[];
   await page.route('https://worker.test/v1/evidence/search',route=>{const body=route.request().postDataJSON();providers.push(body.provider);return route.fulfill({json:{phase:'done',provider:body.provider==='academic'?'crossref':'news-crossref',claims:[],sources:body.provider==='academic'?[]:[{...source,type:'article'}]}});});
-  await page.evaluate(()=>goto('postDetail',{currentPostId:'p0'}));await page.locator('#comment-input').fill('교복 가격이 학부모에게 경제적 부담이 됩니다.');await page.getByRole('button',{name:'📎 근거 첨부',exact:true}).click();await page.getByRole('button',{name:'AI로 근거 찾기'}).click();await page.locator('#evidence-consent').check();
+  await page.evaluate(id=>goto('debateDetail',{currentDebateId:id}),debateId);await page.locator('#debate-opinion').fill('교복 가격이 학부모에게 경제적 부담이 됩니다.');await page.getByRole('button',{name:'📎 근거 첨부',exact:true}).click();await page.getByRole('button',{name:'AI로 근거 찾기'}).click();await page.locator('#evidence-consent').check();
   await page.getByRole('button',{name:'무료 학술자료 검색 (Crossref)',exact:true}).click();await expect(page.getByRole('button',{name:'기사까지 검색 넓히기'})).toBeVisible();await page.getByRole('button',{name:'기사까지 검색 넓히기'}).click();await expect(page.locator('.evidence-result')).toHaveCount(1);expect(providers).toEqual(['academic','combined']);
-  await page.getByRole('button',{name:'근거 첨부 닫기'}).click();await expect(page.locator('#comment-input')).toHaveValue('교복 가격이 학부모에게 경제적 부담이 됩니다.');
+  await page.getByRole('button',{name:'근거 첨부 닫기'}).click();await expect(page.locator('#debate-opinion')).toHaveValue('교복 가격이 학부모에게 경제적 부담이 됩니다.');
 });

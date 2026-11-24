@@ -16,7 +16,7 @@ function renderEvidenceList(items){
   return `<details class="comment-evidence"><summary>📚 첨부된 근거 ${sources.length}개</summary><p>자료 첨부는 주장의 사실 여부가 검증되었다는 뜻이 아니에요.</p><ol>${sources.map(s=>`<li><a href="${escapeHtml(safeEvidenceHref(s.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(s.title||s.url)} ↗</a><span>${escapeHtml(s.publisher||new URL(s.url).hostname)} · ${escapeHtml(evidenceYear(s))}</span></li>`).join('')}</ol></details>`;
 }
 function renderEvidenceComposer(d){
-  if(!session.userId)return '';
+  if(!session.userId||d.kind==='concern'||d.kind==='concern-edit')return '';
   const items=evidenceDraft(d),args=commentArgs(d);
   return `<div class="evidence-composer" data-key="evidence-${escapeHtml(evidenceKey(d))}"><button id="evidence-open-${escapeHtml(evidenceKey(d))}" type="button" class="evidence-add" onclick="openEvidenceDialog(${args})">📎 근거 첨부</button><span class="evidence-count">${items.length} / 8개</span>${items.length?`<ul class="evidence-chips">${items.map(s=>`<li><span title="${escapeHtml(s.title)}">${escapeHtml(s.title)}</span><button type="button" aria-label="${escapeHtml(s.title)} 첨부 삭제" onclick="removeDraftEvidence(${args},${commentArgs(s.id)})">×</button></li>`).join('')}</ul>`:''}</div>`;
 }

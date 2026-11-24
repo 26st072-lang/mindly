@@ -26,7 +26,11 @@ async function expectLanguageWarning(page,submit){
 test('lounge blocks clear insults with a warning, keeps the exact draft and never writes or rewrites it',async({page})=>{
   await openComments(page);
   const input=page.getByRole('textbox',{name:'댓글 내용',exact:true});
-  for(const content of ['시발새끼야','못생겼어','죽어','바보','미친년','너 바보야','너 진짜 못생겼어','너는 죽어라','개새끼','씨 발','  시발새끼야  ']){
+  for(const content of ['시발새끼야','못생겼어','죽어','바보','미친년','너 바보야','너 진짜 못생겼어','너는 죽어라','개새끼','씨 발','  시발새끼야  ',
+    '개새꺄','미친아','미친새꺄','바보같아','니가 뒤져','니가뒤져','아이 개같은 것들','아니 바보같아 진짜',
+    '너는 개같아','작성자는 진짜 바보같아','글쓴이는 정말 한심해','다른 친구 정말 멍청하네',
+    '포근한 공룡 쓰레기 같은 사람이네','너 바보 아냐?','바보 같은 작성자','개 새 꺄','미\u200b친아',
+    '미친아^^','바보같아😊','너는 못생겼어🙄','너개같아']){
     await input.fill(content);
     await expectLanguageWarning(page,()=>input.press('Enter'));
     await expect(input).toHaveValue(content);await expect(input).toBeFocused();
@@ -56,7 +60,16 @@ test('lounge allows informal disagreement, ordinary complaints and harmless word
     '나는 못생겼어도 내가 좋아.',
     '너 바보 아니야. 충분히 잘하고 있어.',
     '내 생각에는 그 행동은 잘못됐어.',
-    '죽어버리고 싶을 만큼 힘들었지만 오늘은 조금 나아졌어.'
+    '죽어버리고 싶을 만큼 힘들었지만 오늘은 조금 나아졌어.',
+    '개같아',
+    '오늘 하루가 정말 개같아.',
+    '미친 아이디어가 떠올랐어.',
+    '너는 바보가 아니야. 충분히 잘하고 있어.',
+    '너처럼 나도 바보같아 보일 때가 있어.',
+    '내가 바보같아. 오늘도 똑같은 실수를 했어.',
+    '네가 겪은 상황은 정말 개같아.',
+    '너 가방을 뒤져 보면 열쇠가 있을 거야.',
+    '네이버 검색 결과가 진짜 쓰레기 같아.'
   ]){
     await page.locator('#comment-input').fill(content);
     await page.getByRole('button',{name:'댓글 보내기',exact:true}).click();
@@ -69,9 +82,9 @@ test('lounge allows informal disagreement, ordinary complaints and harmless word
 test('lounge replies and edits use the same loose check and accept a manual correction',async({page})=>{
   await openComments(page);
   await page.getByRole('button',{name:'다른 친구 댓글에 답글'}).click();
-  await page.locator('#comment-input').fill('죽어');
+  await page.locator('#comment-input').fill('미친아');
   await expectLanguageWarning(page,()=>page.getByRole('button',{name:'답글 보내기',exact:true}).click());
-  await expect(page.locator('#comment-input')).toHaveValue('죽어');
+  await expect(page.locator('#comment-input')).toHaveValue('미친아');
   expect(await page.evaluate(()=>ui.concernReply.commentId)).toBe('other');
   expect(await page.evaluate(()=>window.__test.writes.length)).toBe(0);
   await page.locator('#comment-input').fill('내 생각은 다르지만 네 이야기도 들어볼게.');
@@ -80,9 +93,9 @@ test('lounge replies and edits use the same loose check and accept a manual corr
   const original=page.locator('[data-key="comment-p0-mine"]');
   await original.getByRole('button',{name:'내 댓글 수정',exact:true}).click();
   const editor=page.getByRole('textbox',{name:'댓글 수정 내용'});
-  await editor.fill('미친년');
+  await editor.fill('개새꺄');
   await expectLanguageWarning(page,()=>page.getByRole('button',{name:'수정 저장',exact:true}).click());
-  await expect(editor).toHaveValue('미친년');await expect(editor).toBeFocused();
+  await expect(editor).toHaveValue('개새꺄');await expect(editor).toBeFocused();
   expect(await page.evaluate(()=>window.__test.records.posts[0].comments[0].content)).toBe('내가 쓴 댓글');
   expect(await page.evaluate(()=>window.__test.writes.length)).toBe(1);
   await editor.fill('앞으로는 네 마음도 편해지길 바라.');
