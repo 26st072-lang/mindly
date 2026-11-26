@@ -48,6 +48,7 @@ function attachGlobalListeners(){
   listen('posts',db.collection('posts'),snap=>{DB.posts=snap.docs.map(normalizeRecord);});
   listen('epilogues',db.collection('epilogues'),snap=>{DB.epilogues=snap.docs.map(normalizeRecord);});
   listen('banner',db.collection('meta').doc('banner'),snap=>{if(snap.exists)DB.banner={text:String(snap.data().text||DB.banner.text)};});
+  listen('help',db.collection('meta').doc('help'),snap=>{helpState.sections=normalizeHelpSections(snap.exists?snap.data().sections:null);});
   if(session.isAdmin)listen('users',db.collection('users'),snap=>{DB.users=snap.docs.map(d=>({...d.data(),id:d.id}));});
 }
 function attachDiaryListener(userId){

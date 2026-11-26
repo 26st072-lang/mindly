@@ -3,7 +3,7 @@ const ARROW_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 let renderedRoute=null;
 function brandHTML(){return '<span class="brand">mindly<span>✦</span></span>';}
 function navigationHTML(scope='sidebar'){
-  const links=[['home',HOME_ICON,'홈'],['debate',ICONS.comment,'익명 토론 게시판'],['main',ICONS.heart,'마음 라운지'],['archive',ICONS.box,'나의 보관함']];
+  const links=[['home',HOME_ICON,'홈'],['debate',ICONS.comment,'익명 토론 게시판'],['main',ICONS.heart,'마음 라운지'],['archive',ICONS.box,'나의 보관함'],['help',ICONS.book,'이용 안내 및 FAQ']];
   const active=route=>route==='home'?ui.route==='main'&&ui.mainTab==='home':route==='main'?ui.route==='main'&&ui.mainTab!=='home':route==='debate'?['debate','debateWrite','debateDetail','debateImport'].includes(ui.route):ui.route===route;
   return `<nav class="side-nav" aria-label="주 메뉴">${links.map(([route,icon,label])=>`<button data-key="${scope}-nav-${route}" class="nav-item ${active(route)?'active':''}" ${active(route)?'aria-current="page"':''} onclick="${route==='home'?"goto('main',{mainTab:'home'})":route==='main'?"goto('main',{mainTab:'concern'})":`goto('${route}')`}">${icon}<span>${label}</span>${active(route)?'<i aria-hidden="true"></i>':''}</button>`).join('')}${session.isAdmin?`<button class="nav-item" onclick="goto('adminPanel')">${ICONS.shield}관리자</button>`:''}</nav>`;
 }
@@ -21,7 +21,7 @@ function render(options={}){
   const wasMenuOpen=!!document.getElementById('menu-drawer');
   const views={loading:renderLoading,connectionError:renderConnectionError,setupNeeded:renderConnectionError,landing:renderLanding,main:renderMain,write:renderWrite,postDetail:renderPostDetail,writeEpilogue:renderWriteEpilogue,epilogueDetail:renderEpilogueDetail,archive:renderArchive,mypage:renderMyPage,myHearts:renderMyHearts,adminPanel:renderAdminPanel,search:renderSearchResults,debate:renderDebateBoard,debateWrite:renderDebateWrite,debateDetail:renderDebateDetail,debateImport:renderImportedDebate};
   const standalone=['landing','loading','connectionError','setupNeeded'].includes(ui.route)||(ui.route==='mypage'&&(!session.userId||pendingActions.has('signup')));
-  const content=(views[ui.route]||renderLanding)();
+  const content=(ui.route==='help'?renderHelp:(views[ui.route]||renderLanding))();
   const pageHTML=standalone?`<main id="main-content" tabindex="-1">${content}</main>`:`<div class="app-shell">${sidebarHTML()}<div class="workspace">${topBarHTML()}<main id="main-content" class="page-content ${ui.route==='main'?'lounge':'inner-page'}" tabindex="-1">${content}</main></div></div>${ui.menuOpen?renderDrawer():''}`;
   const html=pageHTML+(ui.accountModal?renderAccountModal():'')+renderDebateFeedback()+renderEvidenceDialog();
   if(!routeChanged&&window.morphdom){
@@ -40,6 +40,7 @@ function render(options={}){
   document.dispatchEvent(new Event('mindly:view-rendered'));
   document.body.classList.toggle('menu-is-open',ui.menuOpen);
   const hasDialog=!!ui.accountModal||!!debateState.feedback||!!evidenceState.dialog;
+  document.getElementById('site-footer').inert=hasDialog||ui.menuOpen;
   document.body.classList.toggle('account-modal-open',hasDialog);
   for(const child of root.children)child.inert=hasDialog&&!child.classList.contains('account-overlay')&&!child.classList.contains('feedback-overlay')&&!child.classList.contains('evidence-overlay');
   const shell=document.querySelector('.app-shell');if(shell)shell.inert=ui.menuOpen||hasDialog;

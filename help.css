@@ -1,0 +1,19 @@
+/* Shared palette and typography follow the existing day/night theme. */
+.site-footer{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px 24px;border-top:1px solid var(--line);padding:24px max(20px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));background:var(--surface-alt);color:var(--ink-soft);font-size:.875rem;line-height:1.8}
+.site-footer>a,.site-footer button{display:inline-flex;align-items:center;gap:6px;min-height:36px}
+.site-footer a,.site-footer button{color:var(--ink-soft);text-decoration:underline;text-underline-offset:4px}
+.site-footer strong{color:var(--primary-strong)}
+.footer-contact{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:0 8px}
+body:has(.submit-bar) .site-footer{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
+.privacy-note{margin:-8px 0 0;font-size:.875rem;line-height:1.9;color:var(--ink-soft)}
+.help-page-title{margin:0;font-size:1.25rem;letter-spacing:-.6px}
+.help-wrap{max-width:760px;margin:0 auto}
+.help-intro{margin:0 0 24px;color:var(--ink-soft);font-size:1rem;line-height:1.9}
+.help-sections{display:grid;gap:20px;margin:24px 0}
+.help-section{padding:28px;border:1px solid var(--line);border-radius:24px;background:var(--surface)}
+.help-section h2{font-size:1.125rem;line-height:1.6;margin:0 0 16px}
+.help-section p{white-space:pre-line;font-size:1rem;line-height:2;margin:0}
+.help-section textarea{box-sizing:border-box;width:100%;min-height:220px;resize:vertical;padding:14px;border:1px solid var(--control-border);border-radius:12px;background:var(--surface-alt);font-size:1rem;line-height:1.9}
+.help-edit-actions{display:flex;flex-wrap:wrap;gap:12px;margin:24px 0}
+.help-edit-actions .form-error{flex-basis:100%}
+@media(max-width:600px){.site-footer{column-gap:20px;row-gap:8px}.footer-contact{flex-basis:100%}.help-section{padding:20px;border-radius:18px}}

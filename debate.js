@@ -3,7 +3,7 @@ const debateState={search:{query:null,items:[],loaded:false,loading:false,error:
 Object.assign(ui,{archiveGroup:'concern',currentDebateId:null});
 Object.assign(debateState,{topic:'',topicContext:'',topicConsent:false,analysisKind:null,sources:[]});
 function workerEndpoint(){return String(window.MINDLY_CONFIG?.workerUrl||'').replace(/\/+$/,'');}
-function communityRouteTitle(){return ui.route==='main'?(ui.mainTab==='home'?'마인들리 홈':'마음 라운지'):ui.route==='search'?'이야기 검색':ui.route.startsWith('debate')?'익명 토론 게시판':ui.route==='archive'?'나의 보관함':'나의 마인들리';}
+function communityRouteTitle(){return ui.route==='main'?(ui.mainTab==='home'?'마인들리 홈':'마음 라운지'):ui.route==='search'?'이야기 검색':ui.route.startsWith('debate')?'익명 토론 게시판':ui.route==='archive'?'나의 보관함':ui.route==='help'?'이용 안내 및 FAQ':'나의 마인들리';}
 function getDebateToken(user,refresh,signal){
   return new Promise((resolve,reject)=>{
     let timer;

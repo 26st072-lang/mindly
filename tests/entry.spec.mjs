@@ -9,7 +9,8 @@ test('entry and login fit phone, tablet and desktop heights with two complete co
       await page.evaluate(route=>{ui.authMode='login';ui.authError='';goto(route);},route);
       const bounds=await page.evaluate(()=>{
         const selectors=ui.route==='landing'?['h1','.landing-copy>p','.landing-actions','.landing-values']:['.auth-wrap','form button[type="submit"]'];
-        return {x:document.documentElement.scrollWidth-document.documentElement.clientWidth,y:document.documentElement.scrollHeight-innerHeight,items:selectors.map(selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {selector,top:r.top,bottom:r.bottom,left:r.left,right:r.right};})};
+        // Entry content still fits; the public contact footer follows below it.
+        return {x:document.documentElement.scrollWidth-document.documentElement.clientWidth,y:document.getElementById('root').getBoundingClientRect().height-innerHeight,items:selectors.map(selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {selector,top:r.top,bottom:r.bottom,left:r.left,right:r.right};})};
       });
       expect(bounds.x,`${width}×${height}, ${route}`).toBeLessThanOrEqual(1);
       expect(bounds.y,`${width}×${height}, ${route}`).toBeLessThanOrEqual(1);

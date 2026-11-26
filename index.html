@@ -17,6 +17,7 @@
 <link rel="stylesheet" href="account-dialogs.css">
 <link rel="stylesheet" href="community.css">
 <link rel="stylesheet" href="evidence.css">
+<link rel="stylesheet" href="help.css">
 <link rel="preload" as="image" href="assets/mascot.png">
 <script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -32,11 +33,18 @@
 <script defer src="evidence.js"></script>
 <script defer src="extension-bridge.js"></script>
 <script defer src="account-dialogs.js"></script>
+<script defer src="help.js"></script>
 <script defer src="interaction.js"></script>
 </head>
 <body>
 <a class="skip-link" href="#main-content">본문으로 바로가기</a>
 <div id="frame"><div id="root"><main id="main-content" class="boot-screen"><span class="brand">mindly<span>✦</span></span><p class="loading-copy" role="status"><span class="spinner" aria-hidden="true"></span>마음이 쉬어갈 공간을 준비하고 있어요.</p></main></div></div>
+<footer id="site-footer" class="site-footer" aria-label="상담 및 운영자 안내">
+  <a href="tel:+82109?oai_link_source=model_response_hotline">자살예방상담전화 <strong>109</strong></a>
+  <a href="tel:1388">청소년상담 <strong>1388</strong></a>
+  <span class="footer-contact">마인들리 운영자 <a href="mailto:kickinmindly@gmail.com">kickinmindly@gmail.com</a></span>
+  <button type="button" onclick="goto('help')">이용 안내 및 FAQ</button>
+</footer>
 <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="activity-indicator" class="activity-indicator" role="status" aria-live="polite" aria-atomic="true" hidden><span class="spinner" aria-hidden="true"></span><span class="activity-label"></span></div>
 <noscript><p>마인들리를 이용하려면 브라우저에서 자바스크립트를 켜주세요.</p></noscript>

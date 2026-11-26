@@ -14,13 +14,19 @@ async function openComments(page){
 }
 
 async function expectLanguageWarning(page,submit){
-  const warning=page.waitForEvent('dialog');
-  const sending=submit();
-  const dialog=await warning;
-  expect(dialog.type()).toBe('alert');
-  expect(dialog.message()).toContain('욕설이나 비방 표현이 포함되어 있어요.');
-  expect(dialog.message()).toContain('마인들리에서는 다정한 말들로 대화해주세요.');
-  await dialog.accept();await sending;
+  const nativeDialogs=[];
+  const handleDialog=async dialog=>{nativeDialogs.push(dialog.type());await dialog.dismiss();};
+  page.on('dialog',handleDialog);
+  await submit();
+  const dialog=page.getByRole('alertdialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('욕설이나 비방 표현이 포함되어 있어요.');
+  await expect(dialog).toContainText('마인들리에서는 다정한 말들로 대화해주세요.');
+  await expect(page.locator('#feedback-confirm')).toBeFocused();
+  expect(await page.locator('#site-footer').evaluate(el=>el.inert)).toBe(true);
+  await page.getByRole('button',{name:'확인하고 직접 수정하기'}).click();
+  await expect(dialog).toHaveCount(0);
+  expect(nativeDialogs).toEqual([]);page.off('dialog',handleDialog);
 }
 
 test('lounge blocks clear insults with a warning, keeps the exact draft and never writes or rewrites it',async({page})=>{
@@ -234,7 +240,7 @@ test('login and signup dialog fit short phones, tablets and desktops, including 
     await page.setViewportSize({width,height});
     for(const withError of [false,true]){
       await page.evaluate(withError=>{ui.authError=withError?'아이디 또는 비밀번호를 확인해주세요.':'';render();},withError);
-      const login=await page.evaluate(()=>({x:document.documentElement.scrollWidth-innerWidth,y:document.documentElement.scrollHeight-innerHeight,bottom:document.querySelector('.account-id-note').getBoundingClientRect().bottom}));
+      const login=await page.evaluate(()=>({x:document.documentElement.scrollWidth-innerWidth,y:document.getElementById('root').getBoundingClientRect().height-innerHeight,bottom:document.querySelector('.account-id-note').getBoundingClientRect().bottom}));
       expect(login.x).toBeLessThanOrEqual(1);expect(login.y).toBeLessThanOrEqual(1);expect(login.bottom).toBeLessThanOrEqual(height);
       await page.locator('#open-signup').click();
       await page.evaluate(withError=>{ui.signupError=withError?'이미 사용 중인 아이디예요. 다른 아이디를 입력해주세요':'';render();},withError);

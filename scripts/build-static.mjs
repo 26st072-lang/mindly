@@ -8,6 +8,7 @@ const files = [
   'index.html',
   'app.js', 'sync.js', 'views.js', 'interaction.js', 'audio.js',
   'color-theme.js', 'account-dialogs.js',
+  'help.js', 'help.css',
   'site-config.js', 'debate.js', 'extension-bridge.js', 'comments.js', 'community.css', 'evidence.js', 'evidence.css',
   'styles.css', 'theme.css', 'entry.css', 'color-theme.css', 'account-dialogs.css',
   'assets', 'vendor',
@@ -19,7 +20,7 @@ for (const file of files) {
 }
 const html = readFileSync(path.join(root, 'index.html'), 'utf8');
 for (const [, reference] of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
-  if (!/^(?:https?:|data:|\/\/)/.test(reference) && !existsSync(path.join(root, reference))) {
+  if (!/^(?:https?:|data:|tel:|mailto:|\/\/)/.test(reference) && !existsSync(path.join(root, reference))) {
     throw new Error(`Missing page asset: ${reference}`);
   }
 }

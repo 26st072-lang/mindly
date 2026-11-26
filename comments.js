@@ -48,8 +48,9 @@ function hasConcernCommentAbuse(content,nicknames=[]){
 function checkConcernCommentLanguage(content,inputId,postId){
   const post=DB.posts.find(item=>item.id===postId),nicknames=[post?.authorNickname,...(post?.comments||[]).map(comment=>comment.authorNickname)];
   if(!hasConcernCommentAbuse(content,nicknames))return true;
-  alert('욕설이나 비방 표현이 포함되어 있어요.\n마인들리에서는 다정한 말들로 대화해주세요.\n내용을 직접 수정한 뒤 다시 보내주세요.');
-  document.getElementById(inputId)?.focus();
+  debateState.feedback={reason:'욕설이나 비방 표현이 포함되어 있어요. 마인들리에서는 다정한 말들로 대화해주세요.',suggestion:'상대방을 평가하는 말 대신, 내 마음이나 바라는 점을 차분하게 적어주세요.',target:inputId};
+  render();
+  queueMicrotask(()=>document.getElementById('feedback-confirm')?.focus());
   return false;
 }
 function commentArgs(...values){return values.map(value=>escapeHtml(JSON.stringify(value))).join(',');}

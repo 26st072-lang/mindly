@@ -62,8 +62,8 @@ test('comments fold after five visible lines, expand without altering content, a
   const collapsed=(await text.boundingBox()).height;await more.click();await expect(row.getByRole('button',{name:'접기',exact:true})).toHaveAttribute('aria-expanded','true');
   expect((await text.boundingBox()).height).toBeGreaterThan(collapsed+10);await expect(text).toContainText('6번째');await row.getByRole('button',{name:'접기',exact:true}).click();
   expect((await text.boundingBox()).height).toBeCloseTo(collapsed,0);
-  const placement=await row.locator('.comment-actions').evaluate(actions=>({justify:getComputedStyle(actions).justifyContent,padding:parseFloat(getComputedStyle(actions.closest('.comment-item')).paddingTop)}));
-  expect(placement.justify).toBe('flex-end');expect(placement.padding).toBeLessThanOrEqual(12);
+  const placement=await row.locator('.comment-actions').evaluate(actions=>({rightGap:actions.getBoundingClientRect().right-actions.lastElementChild.getBoundingClientRect().right,padding:parseFloat(getComputedStyle(actions.closest('.comment-item')).paddingTop)}));
+  expect(Math.abs(placement.rightGap)).toBeLessThanOrEqual(1);expect(placement.padding).toBeLessThanOrEqual(12);
   expect(await page.evaluate(()=>window.__test.writes.length)).toBe(0);
   await page.evaluate(({id,mine})=>{const state=debateState.details.get(id)||{debate:debateState.list[0],opinions:[],loaded:true};state.opinions=[{id:mine,debateId:id,alias:'익명 1',stance:'agree',content:'이유를 함께 살펴보면 좋겠습니다. '.repeat(35),createdAt:Date.now(),isMine:true}];debateState.details.set(id,state);goto('debateDetail',{currentDebateId:id});},{id,mine});
   await expect(page.locator('.opinion-card .comment-more')).toBeVisible();

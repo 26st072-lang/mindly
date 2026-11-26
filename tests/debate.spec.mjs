@@ -31,7 +31,7 @@ async function setup(page,{reject=false,fail=false,restricted=false,locationFail
 }
 test('home links to both communities; navigation removes diary and moves hearts into organized archives',async({page})=>{
   await setup(page);
-  await expect(page.getByRole('heading',{name:'따뜻한 고민상담'})).toBeVisible();await expect(page.getByRole('heading',{name:'익명 토론 게시판',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'마음 라운지',exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'익명 토론 게시판',exact:true})).toBeVisible();
   await expect(page.locator('.side-nav')).not.toContainText('일기장');await expect(page.locator('.side-nav')).not.toContainText('공감한 이야기');await expect(page.locator('body')).not.toContainText('마인디');
   await page.evaluate(()=>{window.__test.records.posts[0].comments=[{id:'mine',authorId:'reader',content:'제가 남긴 의견이에요.',createdAt:Date.now()}];window.__test.emit('posts');goto('archive');});
   await expect(page.getByRole('tab',{name:'고민상담',exact:true})).toBeVisible();await page.getByRole('tab',{name:/내가 쓴 댓글/}).click();await expect(page.locator('#archive-list-panel')).toContainText('제가 남긴 의견이에요.');
@@ -134,7 +134,7 @@ test('multiple detail opinions never create archive title links that intercept h
   const heart=page.locator('.detail-actions [data-action^="debate-heart-"]');
   await heart.click();await expect(heart).toHaveAttribute('aria-pressed','true');
   await page.locator('.sidebar').getByRole('button',{name:'홈',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'따뜻한 고민상담'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'마음 라운지',exact:true})).toBeVisible();
 });
 
 test('archive opinion links keep their click area inside the title and never cover the sidebar',async({page})=>{
@@ -144,7 +144,7 @@ test('archive opinion links keep their click area inside the title and never cov
   await expect(titles).toHaveCount(2);
   expect(await titles.first().evaluate(button=>getComputedStyle(button,'::after').content)).toBe('none');
   await page.locator('.sidebar').getByRole('button',{name:'홈',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'따뜻한 고민상담'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'마음 라운지',exact:true})).toBeVisible();
 });
 
 test('a stalled login token refresh times out and unlocks hearts and stance controls without losing the opinion',async({page})=>{

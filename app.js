@@ -476,7 +476,8 @@ function renderWrite(){
       <span class="field-label">해시태그 (여러 개 선택 가능)</span>
       <div class="hashtag-grid">${HASHTAGS.map(t=>`<button class="hashtag-opt ${d.hashtags.includes(t)?'sel':''}" onclick="toggleHashtag('${t}')">#${t}</button>`).join('')}</div>
     </div>
-    <textarea class="content-textarea" placeholder="어떤 고민이든 편하게 적어보세요..." oninput="ui.writeDraft.content=this.value">${escapeHtml(d.content)}</textarea>
+    <textarea class="content-textarea" aria-describedby="concern-privacy-note" placeholder="어떤 고민이든 편하게 적어보세요..." oninput="ui.writeDraft.content=this.value">${escapeHtml(d.content)}</textarea>
+    <p id="concern-privacy-note" class="privacy-note">안전한 익명 활동을 위해 실명, 학교명, 전화번호 등 개인정보를 작성하지 말아 주세요.</p>
     <div class="option-card">
       <div class="option-row"><span class="lbl">댓글 허용</span><button class="toggle ${d.commentsAllowed?'on':''}" onclick="ui.writeDraft.commentsAllowed=!ui.writeDraft.commentsAllowed; render();"><span class="knob"></span></button></div>
       <div>
@@ -526,6 +527,11 @@ function renderAdminPanel(){
   return `
   <div class="page-header"><button class="back-btn" onclick="goto('main')">${ICONS.back}</button><h2>관리자 페이지</h2></div>
   <div class="admin-wrap">${renderAIAdminPanel()}
+    <div class="admin-section">
+      <h3>이용 안내 및 FAQ 관리</h3>
+      <p class="field-help">이용 방법, 약속, 자주 묻는 질문과 문의 안내를 수정할 수 있어요.</p>
+      <button class="admin-mini-btn" onclick="goto('help')">이용 안내 및 FAQ 수정하기</button>
+    </div>
     <div class="admin-section">
       <h3>홈 배너 문구 관리</h3>
       <textarea id="banner-edit-input" class="banner-edit-area">${escapeHtml(DB.banner.text)}</textarea>

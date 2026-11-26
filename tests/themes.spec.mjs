@@ -79,7 +79,7 @@ test('night entry fits short phones, tablets and desktops and its header control
     await page.setViewportSize({width,height});
     for(const route of ['landing','mypage']){
       await page.evaluate(route=>goto(route),route);
-      const bounds=await page.evaluate(()=>({x:document.documentElement.scrollWidth-document.documentElement.clientWidth,y:document.documentElement.scrollHeight-innerHeight,controls:[...document.querySelectorAll('.entry-header-tools button')].map(el=>el.getBoundingClientRect().toJSON()).sort((a,b)=>a.left-b.left)}));
+      const bounds=await page.evaluate(()=>({x:document.documentElement.scrollWidth-document.documentElement.clientWidth,y:document.getElementById('root').getBoundingClientRect().height-innerHeight,controls:[...document.querySelectorAll('.entry-header-tools button')].map(el=>el.getBoundingClientRect().toJSON()).sort((a,b)=>a.left-b.left)}));
       expect(bounds.x,`${width} ${route}`).toBeLessThanOrEqual(1);expect(bounds.y,`${width} ${route}`).toBeLessThanOrEqual(1);
       for(let i=0;i<bounds.controls.length;i++){const r=bounds.controls[i];expect(r.right).toBeLessThanOrEqual(width);if(i)expect(r.left).toBeGreaterThanOrEqual(bounds.controls[i-1].right);}
     }
