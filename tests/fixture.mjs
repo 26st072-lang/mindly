@@ -14,6 +14,7 @@ export async function mockApp(page,options={}){
       meta:[{id:'banner',text:'Mindly는 서로의 이야기를 조심스레 듣는 공간이에요. 따뜻한 말 한마디 부탁드려요 💙'}]
     };
     if(options.help)records.meta.push({id:'help',sections:options.help});
+    if(options.legacyAge)records.users[0].ageGroup='elem';
     const accounts=new Map([['reader@example.test',{uid:'reader',email:'reader@example.test',password:'secret123'}],['taken@users.mindly1-52859.firebaseapp.com',{uid:'taken',email:'taken@users.mindly1-52859.firebaseapp.com',password:'secret123'}]]);
     let authCallback,authResolved=false,currentUser=options.user?{uid:'reader',email:options.admin?'kickin_mindly@gmail.com':'reader@example.test',getIdToken:async()=> 'test-id-token'}:null;
     let writeFailure=false,writeDelay=0;

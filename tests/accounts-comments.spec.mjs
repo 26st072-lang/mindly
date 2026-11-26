@@ -20,8 +20,9 @@ async function expectLanguageWarning(page,submit){
   await submit();
   const dialog=page.getByRole('alertdialog');
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText('욕설이나 비방 표현이 포함되어 있어요.');
-  await expect(dialog).toContainText('마인들리에서는 다정한 말들로 대화해주세요.');
+  await expect(dialog).toContainText('다른 사람에게 상처를 주는 표현은 수정해 주세요.');
+  await expect(dialog.locator('.suggestion-box')).toHaveCount(0);
+  await expect(dialog).not.toContainText('이렇게 표현해볼 수 있어요');
   await expect(page.locator('#feedback-confirm')).toBeFocused();
   expect(await page.locator('#site-footer').evaluate(el=>el.inert)).toBe(true);
   await page.getByRole('button',{name:'확인하고 직접 수정하기'}).click();
@@ -32,11 +33,11 @@ async function expectLanguageWarning(page,submit){
 test('lounge blocks clear insults with a warning, keeps the exact draft and never writes or rewrites it',async({page})=>{
   await openComments(page);
   const input=page.getByRole('textbox',{name:'댓글 내용',exact:true});
-  for(const content of ['시발새끼야','못생겼어','죽어','바보','미친년','너 바보야','너 진짜 못생겼어','너는 죽어라','개새끼','씨 발','  시발새끼야  ',
+  for(const content of ['시발새끼야','못생겼어','죽어','바보','미친년','너 바보야','너 진짜 못생겼어','너는 죽어라','개새끼','  시발새끼야  ',
     '개새꺄','미친아','미친새꺄','바보같아','니가 뒤져','니가뒤져','아이 개같은 것들','아니 바보같아 진짜',
     '너는 개같아','작성자는 진짜 바보같아','글쓴이는 정말 한심해','다른 친구 정말 멍청하네',
     '포근한 공룡 쓰레기 같은 사람이네','너 바보 아냐?','바보 같은 작성자','개 새 꺄','미\u200b친아',
-    '미친아^^','바보같아😊','너는 못생겼어🙄','너개같아']){
+    '미친아^^','바보같아😊','너는 못생겼어🙄','너개같아','정신병 있냐','찐따 같아','너 못생김','ㅂㅅ','븅신','병.신']){
     await input.fill(content);
     await expectLanguageWarning(page,()=>input.press('Enter'));
     await expect(input).toHaveValue(content);await expect(input).toBeFocused();
@@ -54,6 +55,8 @@ test('lounge allows informal disagreement, ordinary complaints and harmless word
   await openComments(page);
   const warnings=[];page.on('dialog',async dialog=>{warnings.push(dialog.message());await dialog.dismiss();});
   for(const content of [
+    '개같네','아 개빡쳐','존나 힘들겠다','진짜 거지 같은 상황이네','씨 발',
+    '친구가 나한테 "병신"이라고 했어. 너무 속상해.','나는 "개새끼"라는 말을 들었어.',
     '그건 아닌 것 같아. 난 좀 다르게 생각해.',
     '아 진짜 짜증나고 힘들다 ㅋㅋ',
     '미친 듯이 열심히 했는데 결과가 아쉬워.',

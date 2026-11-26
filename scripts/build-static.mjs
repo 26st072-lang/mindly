@@ -1,6 +1,9 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildConcernFilter } from './build-concern-filter.mjs';
+
+buildConcernFilter(true);
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const output = path.resolve(root, 'dist');
@@ -8,7 +11,7 @@ const files = [
   'index.html',
   'app.js', 'sync.js', 'views.js', 'interaction.js', 'audio.js',
   'color-theme.js', 'account-dialogs.js',
-  'help.js', 'help.css',
+  'help.js', 'help.css', 'concern-filter.js',
   'site-config.js', 'debate.js', 'extension-bridge.js', 'comments.js', 'community.css', 'evidence.js', 'evidence.css',
   'styles.css', 'theme.css', 'entry.css', 'color-theme.css', 'account-dialogs.css',
   'assets', 'vendor',

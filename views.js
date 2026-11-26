@@ -57,7 +57,7 @@ function renderLanding(){
   return `<div class="landing entry-screen">
     <header class="landing-header">${brandHTML()}<div class="entry-header-tools">${themeControlHTML()}${musicControlHTML()}</div></header>
     <div class="landing-grid">
-      <div class="landing-copy"><h1>마음에도,<br><span class="entry-title-accent">쉼표가 필요하니까.</span></h1><p><span class="entry-copy-line">말하지 못한 고민부터 소소한 하루까지,</span><span class="entry-copy-line">마인들리와 함께 나눠요.</span></p><div class="landing-actions"><button class="btn-primary" onclick="goto('mypage')">마인들리 시작하기 ${ARROW_ICON}</button><button class="btn-ghost" onclick="enterGuest()">먼저 둘러볼게요 ${ARROW_ICON}</button></div></div>
+      <div class="landing-copy"><h1>마음에도,<br><span class="entry-title-accent">쉼표가 필요하니까.</span></h1><p><span class="entry-copy-line">중학생과 고등학생의 고민과 생각,</span><span class="entry-copy-line">마인들리와 함께 나눠요.</span></p><div class="landing-actions"><button class="btn-primary" onclick="goto('mypage')">마인들리 시작하기 ${ARROW_ICON}</button><button class="btn-ghost" onclick="enterGuest()">먼저 둘러볼게요 ${ARROW_ICON}</button></div></div>
       <div class="landing-visual">${entryScene()}</div>
     </div>
     <div class="landing-values"><div>${ICONS.shield}<strong>편안한 익명</strong></div><div>${ICONS.heart}<strong>따뜻한 공감</strong></div><div>${ICONS.book}<strong>나만의 기록</strong></div></div>

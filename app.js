@@ -1,6 +1,6 @@
 /* ============ 데이터 & 상수 ============ */
 const HASHTAGS = ['연애','인간관계','외모','가정환경','학업/입시','일반고민','일상','우울/스트레스','학교생활'];
-const AGE_GROUPS = [{key:'elem',label:'초등학생'},{key:'middle',label:'중학생'},{key:'high',label:'고등학생'}];
+const AGE_GROUPS = [{key:'middle',label:'중학생'},{key:'high',label:'고등학생'}];
 const WEATHERS = ['☀️','⛅','☁️','🌧️','❄️','🌬️'];
 const ADJECTIVES = ['용감한','수줍은','엉뚱한','몽글몽글한','씩씩한','느긋한','상큼한','포근한','반짝이는','졸린','호기심많은','새침한','든든한','말랑한','조용한','씩씩한','다정한','엉성한'];
 const ANIMALS = ['고양이','강아지','토끼','여우','수달','다람쥐','판다','펭귄','부엉이','고슴도치','오리','거북이','너구리','두더지','사슴'];
@@ -27,7 +27,8 @@ function timeAgo(ts){
   const d = new Date(ts);
   return (d.getMonth()+1)+'월 '+d.getDate()+'일';
 }
-function ageLabel(key){ const f = AGE_GROUPS.find(a=>a.key===key); return f? f.label : ''; }
+function ageLabel(key){ const f = AGE_GROUPS.find(a=>a.key===key); return f? f.label : key==='elem'?'기존 나이대':''; }
+function selectableAge(key){return AGE_GROUPS.some(age=>age.key===key);}
 
 
 const MASCOT_IMG = "assets/mascot.png";
@@ -180,6 +181,7 @@ async function doSignup(){
   ui.signupError='';
   if(!USERNAME_PATTERN.test(username)){ui.signupError='아이디는 영문으로 시작하는 4~20자의 영문·숫자·밑줄로 입력해주세요';render();return;}
   if(pw.length<6||pw.length>128){ui.signupError='비밀번호는 6~128자로 입력해주세요';render();return;}
+  if(!selectableAge(ui.signupDraft.ageGroup)){ui.signupError='중학생 또는 고등학생을 선택해주세요';render();return;}
   return runAction('signup',async()=>{
     try{
       if(!ui.signupDraft.nickname)Object.assign(ui.signupDraft,randomProfile());
@@ -218,7 +220,7 @@ function enterGuest(){ if(!session.userId) session.isGuest=true; goto('main'); }
 
 function resetWriteDraft(post){
   if(post){ ui.writeDraft = { title:post.title, content:post.content, hashtags:[...post.hashtags], commentsAllowed:post.commentsAllowed, ageGroup:post.ageGroup }; ui.editingPostId = post.id; }
-  else { ui.writeDraft = { title:'', content:'', hashtags:[], commentsAllowed:true, ageGroup: session.ageGroup || 'middle' }; ui.editingPostId = null; }
+  else { ui.writeDraft = { title:'', content:'', hashtags:[], commentsAllowed:true, ageGroup: selectableAge(session.ageGroup)?session.ageGroup:'middle' }; ui.editingPostId = null; }
 }
 function toggleHashtag(tag){
   const i = ui.writeDraft.hashtags.indexOf(tag);
@@ -229,6 +231,8 @@ async function submitPostImpl(){
   if(!requireLogin()) return;
   const d = ui.writeDraft;
   if(!d.title.trim() || !d.content.trim()){ toast('제목과 내용을 모두 입력해주세요'); return; }
+  const original=ui.editingPostId&&DB.posts.find(post=>post.id===ui.editingPostId);
+  if(!selectableAge(d.ageGroup)&&!(original&&original.ageGroup===d.ageGroup)){toast('중학생 또는 고등학생을 선택해주세요');return;}
   try{
     if(ui.editingPostId){
       await db.collection('posts').doc(ui.editingPostId).update({ title:d.title, content:d.content, hashtags:[...d.hashtags], commentsAllowed:d.commentsAllowed, ageGroup:d.ageGroup });
@@ -483,6 +487,7 @@ function renderWrite(){
       <div>
         <span class="field-label" style="margin-bottom:10px;">나이대 선택</span>
         <div class="seg">${AGE_GROUPS.map(a=>`<button class="seg-opt ${d.ageGroup===a.key?'sel':''}" onclick="ui.writeDraft.ageGroup='${a.key}'; render();">${a.label}</button>`).join('')}</div>
+        ${isEdit&&!selectableAge(d.ageGroup)?'<p class="field-help">이 글의 기존 나이대는 그대로 유지돼요. 변경하려면 중학생 또는 고등학생을 골라주세요.</p>':''}
       </div>
     </div>
   </div>

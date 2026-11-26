@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "build": "node scripts/build-static.mjs",
+    "build:filter": "node scripts/build-concern-filter.mjs",
     "build:scene": "esbuild scene.js --bundle --minify --format=iife --target=es2020 --legal-comments=eof --outfile=vendor/entry-scene.min.js",
     "start": "node scripts/serve.mjs",
     "dev:extension": "node scripts/dev-extension.mjs",

@@ -236,7 +236,8 @@ function renderOpinionCard(item,archive=false){return renderDiscussionOpinion(it
 
 function renderDebateFeedback(){
   const feedback=debateState.feedback;if(!feedback)return '';
-  return `<div class="feedback-overlay"><section class="feedback-dialog" role="alertdialog" aria-modal="true" aria-labelledby="feedback-title" aria-describedby="feedback-description"><span class="eyebrow">같은 생각도, 조금 더 다정하게</span><h2 id="feedback-title">표현을 한 번 다듬어볼까요?</h2><p id="feedback-description">${escapeHtml(feedback.reason)}</p><div class="suggestion-box"><strong>이렇게 표현해볼 수 있어요</strong><p>${escapeHtml(feedback.suggestion)}</p></div><p class="field-help">제안은 자동으로 반영되지 않아요. 확인 후 원래 입력란에서 직접 수정하고 다시 제출해주세요.</p><button id="feedback-confirm" class="btn-primary" onclick="closeDebateFeedback()">확인하고 직접 수정하기</button></section></div>`;
+  const concern=feedback.kind==='concern';
+  return `<div class="feedback-overlay"><section class="feedback-dialog" role="alertdialog" aria-modal="true" aria-labelledby="feedback-title" aria-describedby="feedback-description"><span class="eyebrow">같은 생각도, 조금 더 다정하게</span><h2 id="feedback-title">표현을 한 번 다듬어볼까요?</h2><p id="feedback-description">${escapeHtml(feedback.reason)}</p>${concern?'':`<div class="suggestion-box"><strong>이렇게 표현해볼 수 있어요</strong><p>${escapeHtml(feedback.suggestion)}</p></div>`}<p class="field-help">${concern?'작성한 댓글은 그대로 남아 있어요. 원래 입력란에서 직접 수정한 뒤 다시 보내주세요.':'제안은 자동으로 반영되지 않아요. 확인 후 원래 입력란에서 직접 수정하고 다시 제출해주세요.'}</p><button id="feedback-confirm" class="btn-primary" onclick="closeDebateFeedback()">확인하고 직접 수정하기</button></section></div>`;
 }
 function closeDebateFeedback(){const target=debateState.feedback?.target;debateState.feedback=null;render();document.getElementById(target)?.focus({preventScroll:false});}
 function renderCommunityHome(){
